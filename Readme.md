@@ -21,3 +21,9 @@ The slings run at these times:
 2. 13:37 - 500 Food, 500 Gold
 3. 19:00 - 500 Food, 500 Stone
 4. 25:00 - 500 Food, 500 Wood, 500 Gold, 500 Stone
+
+## Jerusalem
+
+The the original campaign Jerusalem is the Byzantines.
+In the Definitive Edition the player is the Franks.
+I'll revert them to the Byzantines to increase civilization variety, since there already is a Franks player.
