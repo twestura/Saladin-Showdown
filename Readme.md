@@ -15,7 +15,14 @@ There are two timers:
 1. A 5:00 countdown until the attacks begin.
 2. A 25:00 countdown until the player wins.
 
-In total the scenario takes 30 minutes.
+In total the scenario takes 30 in-game minutes.
+This time is roughly 17:39 in IRL time at 1.7x speed.
+
+## Defeat
+
+The player is defeated when the Wonder reaches 0 HP.
+This condition triggers the, "The Wonder, the Wonder, the... no!" taunt 26.
+When the Wonder is destroyed fully (using the)
 
 ## Jerusalem
 
