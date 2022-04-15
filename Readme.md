@@ -16,7 +16,7 @@ When the Wonder is destroyed fully (using the)
 
 ## Timer
 
-There are two timers:
+There are two main timers:
 
 1. A 5:00 countdown until the attacks begin.
 2. A 25:00 countdown until the player wins.
