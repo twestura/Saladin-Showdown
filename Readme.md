@@ -26,7 +26,7 @@ When the Wonder is destroyed fully (using the)
 
 ## Jerusalem
 
-The the original campaign Jerusalem is the Byzantines.
+In the original campaign Jerusalem is the Byzantines.
 In the Definitive Edition the player is the Franks.
 I'll revert them to the Byzantines to increase civilization variety, since there already is a Franks player.
 
