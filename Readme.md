@@ -40,6 +40,17 @@ I'll revert them to the Byzantines to increase civilization variety, since there
 
 TODO
 
+Potential changes:
+
+* More Wood, Gold, or Stone on the "island" to the east, just south of Jerusalem.
+* Gate in the eastern wall, heading towards Jerusalem.
+* More Wood at the bottom of the cliffs near the city.
+* Remove rocks from the Gold island.
+* Put 150 or 200 Wood on the trees near the city (increased from the standard 100 Wood).
+* More Docks at the Persian Outpost.
+* Visibility of the Persian player.
+* Remove buildings and units from AI player starting bases.
+
 ## Persian Outpost
 
 The Persian Outpost will provide fully upgraded Elite War Elephants and periodic "sling".
@@ -61,10 +72,28 @@ The slings run at these times:
 3. 19:00 - 500 Food, 500 Stone
 4. 25:00 - 500 Food, 500 Wood, 500 Gold, 500 Stone
 
+## Relics
+
 ## AI Behavior
+
+### Unit Compositions
+
+TODO
+
+### DUC Micro
+
+* Franks: Castle drops.
+* Jerusalem: Monk micro vs siege.
+* Genoese: Fish Trap Docks.
+* Templars: Teutonic Knights and Siege Towers.
+* Richard: Longbowmen keep under Castles and attack move.
+
+## Scenario Instructions and Objectives
 
 TODO
 
 ## Stretch Goals
 
 * Translations (other than just an English version).
+* Use Invisible Objects and replace them with Transport Ships instead of using the visible ships on the right side of the map.
+* Individually increase the population limit per elephant as they disembark.
