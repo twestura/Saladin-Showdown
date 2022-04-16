@@ -51,6 +51,9 @@ The elephants transports run at these times:
 2. 15:00 - 10 Elephants
 3. 23:00 - 20 Elephants
 
+TODO handle cases where the Transport Ship is blocked and cannot unload.
+Could be with triggers or with DUC in the AI script.
+
 The slings run at these times:
 
 1. 7:30 - 500 Food
