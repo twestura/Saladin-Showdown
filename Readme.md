@@ -72,7 +72,23 @@ The slings run at these times:
 3. 19:00 - 500 Food, 500 Stone
 4. 25:00 - 500 Food, 500 Wood, 500 Gold, 500 Stone
 
+## Score Objectives
+
+TODO
+
+* Capture Relics (2,000 per Relic, extra 5,000 for capturing all 5)
+* Explore the Gold island (1,000)
+* Destroy the Hero Trebuchets (1,000 for the first, 2,000 for the second)
+* Defeat enemy players (5,000 per player)
+* Survive 30 minutes (10,000)
+
 ## Relics
+
+Each computer player has one Relic that they keep in their Monastery.
+All players build at least 1 Monastery and 1 Monk to reclaim the Relic if it's
+lost and in their base.
+The player gets 2,000 points for each Relic captured.
+A bonus 5,000 for capturing all 5 Relics.
 
 ## AI Behavior
 
@@ -82,9 +98,9 @@ TODO
 
 ### DUC Micro
 
-* Franks: Castle drops.
+* Franks: Castle drops, keep Bombard Cannons near Castles.
 * Jerusalem: Monk micro vs siege.
-* Genoese: Fish Trap Docks.
+* Genoese: Fish Trap Docks, transport to the Gold island.
 * Templars: Teutonic Knights and Siege Towers.
 * Richard: Longbowmen keep under Castles and attack move.
 
@@ -97,3 +113,5 @@ TODO
 * Translations (other than just an English version).
 * Use Invisible Objects and replace them with Transport Ships instead of using the visible ships on the right side of the map.
 * Individually increase the population limit per elephant as they disembark.
+* More Epic ending: kill or explode all enemy units and buildings.
+* Victory instead of defeat when Wonder goes down?
