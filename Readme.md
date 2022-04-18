@@ -78,7 +78,7 @@ TODO
 
 * Capture Relics (2,000 per Relic, extra 5,000 for capturing all 5)
 * Explore the Gold island, Persian Outpost, north and south corners (1,000 each, with a 1,000 bonus for reaching all of them)
-* Destroy the Hero Trebuchets (1,000 for the first, 2,000 for the second)
+* Destroy the Hero Trebuchets (1,000 for the first, 1,000 for the second, and 1,000 for both---a total of 3,000)
 * Defeat enemy players (20,000 per player, 50,000 for defeating all of them)
 * Survive 30 minutes (20,000)
 
