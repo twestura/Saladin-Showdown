@@ -15,6 +15,12 @@
 (defconst state-attack-intensify 2)
 (defconst state-attack-all-in 3)
 
+; Local search results
+(defconst gl-local-total 100)
+(defconst gl-local-last 101)
+(defconst gl-remote-total 102)
+(defconst gl-remote-last 103)
+
 ; Locations at which to place the first two additional Town Centers.
 (defconst gl-tc-1-x 200)
 (defconst gl-tc-1-y 201)
@@ -71,6 +77,9 @@
   ; Allows units to patroll while enroute to attacking distant targets.
   (set-strategic-number sn-enable-patrol-attack 1)
 
+  ; Target the human player 1 for attacks.
+  (set-strategic-number sn-target-player-number 1)
+
   (disable-self)
 )
 
@@ -102,8 +111,6 @@
   (resign)
   (disable-self)
 )
-
-; TODO focus on attacking the Wonder
 
 ; Rules that always should be executed.
 
@@ -244,7 +251,29 @@
   (research ri-chemistry)
 )
 
-; TODO drop sites
+(defrule
+  (or
+    (building-type-count-total lumber-camp == 0)
+    (and
+      (building-type-count-total lumber-camp > 0)
+      (and
+        (dropsite-min-distance wood > 4)
+        (dropsite-min-distance wood < 255)
+      )
+    )
+  )
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+(defrule
+  (building-type-count-total lumber-camp < 3)
+  (unit-type-count-total villager > 30)
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
 
 (defrule
   (unit-type-count-total villager < 50)
@@ -268,7 +297,13 @@
 )
 
 (defrule
-  (unit-type-count-total fishing-ship < 30)
+  (or
+    (and
+      (game-time > 1200)
+      (unit-type-count-total fishing-ship < 5)
+    )
+    (unit-type-count-total fishing-ship < 30)
+  )
   (can-train fishing-ship)
 =>
   (train fishing-ship)
@@ -341,7 +376,22 @@
   (research ri-hussar)
 )
 
+(defrule
+  (game-time > 1200)
+  (can-research ri-plate-barding)
+=>
+  (research ri-plate-barding)
+)
+
 ; Trains boats
+
+(defrule
+  (game-time > 1200)
+  (building-type-count-total dock < 10)
+  (can-build dock)
+=>
+  (build dock)
+)
 
 (defrule
   (game-time > 1500)
@@ -352,7 +402,21 @@
 )
 
 (defrule
-  (unit-type-count-total galley-line < 50)
+  (unit-type-count-total fire-ship-line < 5)
+  (can-train fire-ship-line)
+=>
+  (train fire-ship-line)
+)
+
+(defrule
+  (unit-type-count-total cannon-galleon-line < 3)
+  (can-train cannon-galleon-line)
+=>
+  (train cannon-galleon-line)
+)
+
+(defrule
+  (unit-type-count-total galley-line < 40)
   (can-train galley-line)
 =>
   (train galley-line)
@@ -414,6 +478,19 @@
   (train bombard-cannon)
 )
 
+(defrule
+  (can-research ri-two-man-saw)
+=>
+  (research ri-two-man-saw)
+)
+
+(defrule
+  (game-time > 1200)
+  (can-research ri-architecture)
+=>
+  (research ri-architecture)
+)
+
 ; Attacking control.
 
 ; TODO keep units on defensive stance, or at least keep them near the town
@@ -456,6 +533,28 @@
   (disable-self)
 )
 
+; Directs Cannon Galleons to attack the Wonder.
+(defrule
+  (game-time > 1500)
+=>
+  (up-full-reset-search)
+  (up-find-local c: cannon-galleon c: 240)
+  (up-find-local c: elite-cannon-galleon c: 240)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-find-remote c: wonder c: 1)
+  (up-get-search-state gl-local-total)
+  (disable-self)
+)
+
+(defrule
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-target-objects 1 action-default -1 -1)
+  (disable-self)
+)
+
 ; TODO Fishing Trap DUC.
 
 ; TODO Island Dock and Gold Mining DUC.
@@ -463,3 +562,6 @@
 ; TODO stop ships attacking walls, especially demo ships
 ; TODO stop fire ships attacking towers
 ; TODO keep ships away from towers, use cannon galleons to attack them instead
+; TODO eventually focus cannon galleons upon the wonder, they can hit it from
+; the coast
+; TODO resource sling

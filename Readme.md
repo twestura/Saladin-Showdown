@@ -77,9 +77,9 @@ The slings run at these times:
 TODO
 
 * Capture Relics (2,000 per Relic, extra 5,000 for capturing all 5)
-* Explore the Gold island (1,000)
+* Explore the Gold island, Persian Outpost, north and south corners (1,000 each, with a 1,000 bonus for reaching all of them)
 * Destroy the Hero Trebuchets (1,000 for the first, 2,000 for the second)
-* Defeat enemy players (5,000 per player)
+* Defeat enemy players (10,000 per player)
 * Survive 30 minutes (10,000)
 
 ## Relics
