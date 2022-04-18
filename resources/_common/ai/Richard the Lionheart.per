@@ -1,5 +1,14 @@
+; Richard the Lionheart Player
+; TODO
+
+; Resign condition
 (defrule
-  (true)
+	(military-population < 4)
+	(unit-type-count-total villager < 1)
+	(not (can-train villager))
 =>
+  (chat-to-all "Alas, mine Trebuchets were not heroic enough.")
+  (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
+  (resign)
   (disable-self)
 )

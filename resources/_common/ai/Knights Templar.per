@@ -1,5 +1,13 @@
+; Knights Templar AI
+; TODO
+
 (defrule
-  (true)
+	(military-population < 4)
+	(unit-type-count-total villager < 1)
+	(not (can-train villager))
 =>
+  (chat-to-all "Forsooth, my Teutonic Knights woudlst not ungarrison from their Siege Towers to ask for directions!")
+  (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
+  (resign)
   (disable-self)
 )
