@@ -111,7 +111,11 @@ TODO
 ## Stretch Goals
 
 * Translations (other than just an English version).
-* Use Invisible Objects and replace them with Transport Ships instead of using the visible ships on the right side of the map.
 * Individually increase the population limit per elephant as they disembark.
 * More Epic ending: kill or explode all enemy units and buildings.
 * Victory instead of defeat when Wonder goes down?
+
+## Questions
+
+* How should the Relic objective be displayed?
+* Current Relics or Max Captured Relics?
