@@ -1,0 +1,619 @@
+; Genoese player. Builds up a base while fishing in the north of the map.
+; The third player to attack. For the most part attacks only on the water while
+; keeping army at home until the end. Only sends land army forward at the very
+; end of the game.
+; The Genoese are the only enemy to start in the Imperial Age instead of the
+; Post-Imperial Age. They research technologies and become stronger over time
+; as their attacks go on.
+
+; Play state initialized to base building.
+; Rules for population limit, unit creation, and attack aggression depend on
+; the state.
+(defconst gl-play-state 60)
+(defconst state-build-base 0)
+(defconst state-attack-begin 1)
+(defconst state-attack-intensify 2)
+(defconst state-attack-all-in 3)
+
+; Local search results
+(defconst gl-local-total 100)
+(defconst gl-local-last 101)
+(defconst gl-remote-total 102)
+(defconst gl-remote-last 103)
+
+; Locations at which to place the first two additional Town Centers.
+(defconst gl-tc-1-x 200)
+(defconst gl-tc-1-y 201)
+(defconst gl-tc-2-x 202)
+(defconst gl-tc-2-y 203)
+(defconst gl-num-placed-initial-tcs 204)
+
+; Timer to launch repeated attacks once attacking starts.
+(defconst t-attack 1)
+(defconst attack-interval 60)
+
+; Initializes strategic numbers.
+(defrule
+  (true)
+=>
+  ; Enables multiple buildings of the same type to be constructed at once.
+  (set-strategic-number sn-enable-new-building-system 1)
+
+  ; Allows dropsites to be adjacent to resources.
+  (set-strategic-number sn-allow-adjacent-dropsites 1)
+
+  ; Initializes boat exploration.
+  (set-strategic-number sn-number-boat-explore-groups 2)
+
+  ; Initializes Villagers to construct buildings.
+  (set-strategic-number sn-percent-civilian-explorers 0)
+  (set-strategic-number sn-percent-civilian-builders 100)
+  (set-strategic-number sn-percent-civilian-gatherers 0)
+  (set-strategic-number sn-cap-civilian-explorers 0)
+  (set-strategic-number sn-cap-civilian-builders 200)
+  (set-strategic-number sn-total-number-explorers 0)
+  (set-strategic-number sn-number-explore-groups 0)
+  (set-strategic-number sn-maximum-explore-group-size 0)
+
+  ; Initializes Army and Boats to defend.
+  (set-strategic-number sn-percent-attack-soldiers 0)
+  (set-strategic-number sn-percent-attack-boats 0)
+
+  ; Initializes land Villager gatherer percentages.
+  (set-strategic-number sn-food-gatherer-percentage 0)
+  (set-strategic-number sn-wood-gatherer-percentage 80)
+  (set-strategic-number sn-gold-gatherer-percentage 20)
+  (set-strategic-number sn-stone-gatherer-percentage 0)
+
+  ; Increases focus of attacks on the Wonder.
+	(set-strategic-number sn-special-attack-type1 wonder)
+
+  ; Makes attack groups larger.
+  (set-strategic-number sn-maximum-attack-group-size 200)
+  (set-strategic-number sn-minimum-attack-group-size 20)
+  (set-strategic-number sn-maximum-boat-attack-group-size 200)
+  (set-strategic-number sn-minimum-boat-attack-group-size 20)
+
+  ; Allows units to patroll while enroute to attacking distant targets.
+  (set-strategic-number sn-enable-patrol-attack 1)
+
+  ; Target the human player 1 for attacks.
+  (set-strategic-number sn-target-player-number 1)
+
+  ; Enables intelligent attacking.
+	(set-strategic-number sn-attack-intelligence 1)
+
+  (disable-self)
+)
+
+; Initializes goals.
+(defrule
+  (true)
+=>
+  ; Initializes state goal for the initial attack.
+  (set-goal gl-play-state state-build-base)
+
+  ; Initializes the TC placement locations.
+  (set-goal gl-tc-1-x 187)
+  (set-goal gl-tc-1-y 6)
+  (set-goal gl-tc-2-x 175)
+  (set-goal gl-tc-2-y 28)
+  (set-goal gl-num-placed-initial-tcs 0)
+
+  (disable-self)
+)
+
+; Resign Condition
+(defrule
+	(military-population < 6)
+	(unit-type-count-total villager < 1)
+	(not (can-train villager))
+=>
+  (chat-to-all "Zounds! The rocks on the Gold island blocked my building placement!")
+  (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
+  (resign)
+  (disable-self)
+)
+
+; Cheat resources
+
+(defrule
+  (game-time >= 1020)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1200)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1350)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1500)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1650)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+; Rules that always should be executed.
+
+(defrule
+  (building-type-count-total lumber-camp == 0)
+  (building-type-count-total town-center == 0)
+  (wood-amount < 100)
+  (can-buy-commodity wood)
+=>
+  (buy-commodity wood)
+)
+
+(defrule
+  (building-type-count-total town-center < 3)
+  (stone-amount < 100)
+  (can-buy-commodity stone)
+=>
+  (buy-commodity stone)
+)
+
+; Places the first two TCs at set locations.
+(defrule
+  (up-can-build-line 0 gl-tc-1-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-1-x gl-tc-1-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (up-can-build-line 0 gl-tc-2-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-2-x gl-tc-2-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (building-type-count-total town-center < 3)
+  (can-build town-center)
+  (goal gl-num-placed-initial-tcs 2)
+=>
+  (build town-center)
+)
+
+(defrule
+  (building-type-count-total town-center >= 1)
+  (or
+    (building-type-count-total dock < 6)
+    (and
+      (game-time > 1200)
+      (building-type-count-total dock < 12)
+    )
+  )
+  (can-build dock)
+=>
+  (build dock)
+)
+
+(defrule
+  (building-type-count-total town-center >= 3)
+  (building-type-count-total dock >= 6)
+=>
+  (set-strategic-number sn-wood-gatherer-percentage 70)
+  (set-strategic-number sn-gold-gatherer-percentage 30)
+  (disable-self)
+)
+
+(defrule
+  (population-headroom > 0)
+  (housing-headroom <= 10)
+  (up-pending-objects c: house < 3) ; Build at most 3 Houses at once.
+  (can-build house)
+=>
+  (build house)
+)
+
+
+(defrule
+  (building-type-count-total monastery < 1)
+  (can-build monastery)
+=>
+  (build monastery)
+)
+
+(defrule
+  (building-type-count-total archery-range < 2)
+  (can-build archery-range)
+=>
+  (build archery-range)
+)
+
+(defrule
+  (building-type-count-total stable < 2)
+  (can-build stable)
+=>
+  (build stable)
+)
+
+(defrule
+  (building-type-count-total barracks < 2)
+  (can-build barracks)
+=>
+  (build barracks)
+)
+
+(defrule
+  (building-type-count-total market < 1)
+  (can-build market)
+=>
+  (build market)
+)
+
+(defrule
+  (building-type-count-total university < 1)
+  (can-build university)
+=>
+  (build university)
+)
+
+(defrule
+  (building-type-count-total blacksmith < 1)
+  (can-build blacksmith)
+=>
+  (build blacksmith)
+)
+
+(defrule
+  (building-type-count-total siege-workshop < 1)
+  (can-build siege-workshop)
+=>
+  (build siege-workshop)
+)
+
+(defrule
+  (can-research ri-chemistry)
+=>
+  (research ri-chemistry)
+)
+
+(defrule
+  (or
+    (building-type-count-total lumber-camp == 0)
+    (and
+      (building-type-count-total lumber-camp > 0)
+      (and
+        (dropsite-min-distance wood > 4)
+        (dropsite-min-distance wood < 255)
+      )
+    )
+  )
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+(defrule
+  (building-type-count-total lumber-camp < 3)
+  (unit-type-count-total villager > 30)
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+(defrule
+  (unit-type-count-total villager < 50)
+  (can-train villager)
+=>
+  (train villager)
+)
+
+(defrule
+  (unit-type-count-total fishing-ship < 5)
+  (can-train fishing-ship)
+=>
+  (train fishing-ship)
+)
+
+(defrule
+  (unit-type-count-total galley-line < 15)
+  (can-train galley-line)
+=>
+  (train galley-line)
+)
+
+(defrule
+  (or
+    (and
+      (game-time > 1200)
+      (unit-type-count-total fishing-ship < 5)
+    )
+    (unit-type-count-total fishing-ship < 30)
+  )
+  (can-train fishing-ship)
+=>
+  (train fishing-ship)
+)
+
+(defrule
+  (unit-type-count-total monk < 1)
+  (can-train monk)
+=>
+  (train monk)
+)
+
+; TODO make units not block production facilities
+
+; Prioritizes upgrades over boats.
+
+(defrule
+  (game-time > 800)
+  (can-research ri-bracer)
+=>
+  (research ri-bracer)
+)
+
+(defrule
+  (game-time > 800)
+  (can-research ri-shipwright)
+=>
+  (research ri-shipwright)
+)
+
+(defrule
+  (game-time > 1200)
+  (can-research ri-galleon)
+=>
+  (research ri-galleon)
+)
+
+(defrule
+  (game-time > 1200)
+  (can-research ri-deck-guns)
+=>
+  (research ri-deck-guns)
+)
+
+(defrule
+  (game-time > 1200)
+  (can-research ri-dry-dock)
+=>
+  (research ri-dry-dock)
+)
+
+(defrule
+  (game-time > 1200)
+  (can-research ri-fast-fire-ship)
+=>
+  (research ri-fast-fire-ship)
+)
+
+(defrule
+  (game-time > 800)
+  (can-research ri-arbalest)
+=>
+  (research ri-arbalest)
+)
+
+(defrule
+  (game-time > 1000)
+  (can-research ri-hussar)
+=>
+  (research ri-hussar)
+)
+
+(defrule
+  (game-time > 1200)
+  (can-research ri-plate-barding)
+=>
+  (research ri-plate-barding)
+)
+
+; Trains boats
+
+(defrule
+  (game-time > 1200)
+  (building-type-count-total dock < 10)
+  (can-build dock)
+=>
+  (build-forward dock)
+)
+
+(defrule
+  (game-time > 1500)
+  (unit-type-count-total cannon-galleon-line < 30)
+  (can-train cannon-galleon-line)
+=>
+  (train cannon-galleon-line)
+)
+
+(defrule
+  (unit-type-count-total fire-ship-line < 5)
+  (can-train fire-ship-line)
+=>
+  (train fire-ship-line)
+)
+
+(defrule
+  (unit-type-count-total cannon-galleon-line < 3)
+  (can-train cannon-galleon-line)
+=>
+  (train cannon-galleon-line)
+)
+
+(defrule
+  (unit-type-count-total galley-line < 40)
+  (can-train galley-line)
+=>
+  (train galley-line)
+)
+
+(defrule
+  (unit-type-count-total cannon-galleon-line < 5)
+  (can-train cannon-galleon-line)
+=>
+  (train cannon-galleon-line)
+)
+
+(defrule
+  (unit-type-count-total fire-ship-line < 20)
+  (can-train fire-ship-line)
+=>
+  (train fire-ship-line)
+)
+
+(defrule
+  (unit-type-count-total demolition-ship-line < 3)
+  (can-train demolition-ship-line)
+=>
+  (train demolition-ship-line)
+)
+
+(defrule
+  (unit-type-count-total archer-line < 15)
+  (can-train archer-line)
+=>
+  (train archer-line)
+)
+
+(defrule
+  (unit-type-count-total scout-cavalry-line < 10)
+  (can-train scout-cavalry-line)
+=>
+  (train scout-cavalry-line)
+)
+
+(defrule
+  (unit-type-count-total skirmisher-line < 10)
+  (can-train skirmisher-line)
+=>
+  (train skirmisher-line)
+)
+
+(defrule
+  (unit-type-count-total spearman-line < 10)
+  (can-train spearman-line)
+=>
+  (train spearman-line)
+)
+
+(defrule
+  (unit-type-count-total bombard-cannon < 3)
+  (can-train bombard-cannon)
+=>
+  (train bombard-cannon)
+)
+
+(defrule
+  (can-research ri-two-man-saw)
+=>
+  (research ri-two-man-saw)
+)
+
+(defrule
+  (game-time > 1200)
+  (can-research ri-architecture)
+=>
+  (research ri-architecture)
+)
+
+; Attacking control.
+
+; TODO keep units on defensive stance, or at least keep them near the town
+(defrule
+  (town-under-attack)
+=>
+  (attack-now)
+)
+
+; TODO set attack phase goals
+
+; Early Attack phase.
+
+(defrule
+  (game-time > 660)
+=>
+  (set-strategic-number sn-percent-attack-boats 100)
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+  (disable-self)
+)
+
+(defrule
+  (timer-triggered t-attack)
+=>
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+)
+
+; Intensify attack phase.
+
+; All-in attack phase.
+
+; Sends all land soldiers to join the attack after 25 minutes.
+(defrule
+  (game-time > 1500)
+=>
+  (set-strategic-number sn-percent-attack-soldiers 100)
+  (attack-now)
+  (disable-self)
+)
+
+; TODO task nearby cannon galleons to attack the Wonder.
+
+; Directs Cannon Galleons to attack the Wonder.
+(defrule
+  (game-time > 1500)
+=>
+  (up-full-reset-search)
+  (up-find-local c: cannon-galleon c: 240)
+  (up-find-local c: elite-cannon-galleon c: 240)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-find-remote c: wonder c: 1)
+  (up-get-search-state gl-local-total)
+  (disable-self)
+)
+
+(defrule
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-target-objects 1 action-default -1 -1)
+  (disable-self)
+)
+
+; TODO Fishing Trap DUC.
+
+; TODO Island Dock and Gold Mining DUC.
+
+; TODO stop ships attacking walls, especially demo ships
+; TODO stop fire ships attacking towers
+; TODO keep ships away from towers, use cannon galleons to attack them instead
+; TODO eventually focus cannon galleons upon the wonder, they can hit it from
+; the coast
+; TODO resource sling
