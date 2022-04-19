@@ -1,6 +1,89 @@
 ; Knights Templar AI
 ; TODO
 
+; Local search results
+(defconst gl-local-total 100)
+(defconst gl-local-last 101)
+(defconst gl-remote-total 102)
+(defconst gl-remote-last 103)
+
+; Locations at which to place the first two additional Town Centers.
+(defconst gl-tc-1-x 200)
+(defconst gl-tc-1-y 201)
+(defconst gl-tc-2-x 202)
+(defconst gl-tc-2-y 203)
+(defconst gl-num-placed-initial-tcs 204)
+
+; Timer to launch repeated attacks once attacking starts.
+(defconst t-attack 1)
+(defconst attack-interval 60)
+
+; Initializes strategic numbers.
+(defrule
+  (true)
+=>
+  ; Enables multiple buildings of the same type to be constructed at once.
+  (set-strategic-number sn-enable-new-building-system 1)
+
+  ; Allows dropsites to be adjacent to resources.
+  (set-strategic-number sn-allow-adjacent-dropsites 1)
+
+  ; Initializes Villagers to construct buildings.
+  (set-strategic-number sn-percent-civilian-explorers 0)
+  (set-strategic-number sn-percent-civilian-builders 100)
+  (set-strategic-number sn-percent-civilian-gatherers 0)
+  (set-strategic-number sn-cap-civilian-explorers 0)
+  (set-strategic-number sn-cap-civilian-builders 200)
+  (set-strategic-number sn-total-number-explorers 1)
+  (set-strategic-number sn-number-explore-groups 1)
+  (set-strategic-number sn-maximum-explore-group-size 1)
+
+  ; Initializes Army to defend.
+  (set-strategic-number sn-percent-attack-soldiers 0)
+
+  ; Initializes land Villager gatherer percentages.
+  (set-strategic-number sn-food-gatherer-percentage 35)
+  (set-strategic-number sn-wood-gatherer-percentage 35)
+  (set-strategic-number sn-gold-gatherer-percentage 30)
+  (set-strategic-number sn-stone-gatherer-percentage 0)
+
+  ; Increases focus of attacks on the Wonder.
+	(set-strategic-number sn-special-attack-type1 wonder)
+
+  ; Makes attack groups larger.
+  (set-strategic-number sn-maximum-attack-group-size 200)
+  (set-strategic-number sn-minimum-attack-group-size 20)
+
+  ; Allows units to patroll while enroute to attacking distant targets.
+  (set-strategic-number sn-enable-patrol-attack 1)
+
+  ; Target the human player 1 for attacks.
+  (set-strategic-number sn-target-player-number 1)
+
+  ; Enables intelligent attacking.
+	(set-strategic-number sn-attack-intelligence 1)
+
+  ; Let's the AI attack walls.
+	(set-strategic-number sn-wall-targeting-mode 1)
+
+  (disable-self)
+)
+
+; Initializes goals.
+(defrule
+  (true)
+=>
+  ; Initializes the TC placement locations.
+  (set-goal gl-tc-1-x 156)
+  (set-goal gl-tc-1-y 60)
+  (set-goal gl-tc-2-x 167)
+  (set-goal gl-tc-2-y 54)
+  (set-goal gl-num-placed-initial-tcs 0)
+
+  (disable-self)
+)
+
+; Resign condition
 (defrule
 	(military-population < 4)
 	(unit-type-count-total villager < 1)
@@ -9,5 +92,34 @@
   (chat-to-all "Forsooth, my Teutonic Knights woudlst not ungarrison from their Siege Towers to ask for directions!")
   (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
   (resign)
+  (disable-self)
+)
+
+; Cheat resources
+
+(defrule
+  (game-time >= 1200)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1350)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1500)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
   (disable-self)
 )

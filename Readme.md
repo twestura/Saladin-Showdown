@@ -30,6 +30,8 @@ When the time expires, the player's score increases by 10,000 points.
 By using the Modify Resource effect to add to a player's score with Item ID 175, we give score to the player for completing secondary objectives.
 Every 10 Tribute Score contribute's 1 point to the player's score.
 
+The player get a constant trickle of 500 Tribute Score every 5 in-game seconds, matching that of the Barbarossa Brawl.
+
 ## Jerusalem
 
 In the original campaign Jerusalem is the Byzantines.

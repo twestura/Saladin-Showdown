@@ -80,6 +80,9 @@
   ; Target the human player 1 for attacks.
   (set-strategic-number sn-target-player-number 1)
 
+  ; Enables intelligent attacking.
+	(set-strategic-number sn-attack-intelligence 1)
+
   (disable-self)
 )
 
@@ -109,6 +112,53 @@
   (chat-to-all "Zounds! The rocks on the Gold island blocked my building placement!")
   (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
   (resign)
+  (disable-self)
+)
+
+; Cheat resources
+
+(defrule
+  (game-time >= 1020)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1200)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1350)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1500)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1650)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
   (disable-self)
 )
 
@@ -390,7 +440,7 @@
   (building-type-count-total dock < 10)
   (can-build dock)
 =>
-  (build dock)
+  (build-forward dock)
 )
 
 (defrule
