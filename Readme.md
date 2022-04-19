@@ -121,3 +121,9 @@ TODO
 
 * How should the Relic objective be displayed?
 * Current Relics or Max Captured Relics?
+* Only build Mining Camps when there is neither a camp nor a TC on the Gold?
+* Build Mining Camps on Gold or Stone specifically?
+* Make the Transport Repeatedly unload if it's blocked (probably through DUC)?
+* Place Mills for Farms?
+* Need to improve the behavior of AI units attacking the Wonder.
+* Prevent TC placement while build-line is being used.

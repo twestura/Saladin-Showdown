@@ -1,5 +1,10 @@
 ; Knights Templar AI
-; TODO
+; Make Teutonic Knights, Siege Onagers, Siege Towers, Champions, Paladins, and
+; Halbardiers. Attempts the micro the Teutonic Knights over walls with Siege
+; Towers.
+
+; For some reason siege-tower is not a pre-defined constant.
+(defconst siege-tower 1105)
 
 ; Local search results
 (defconst gl-local-total 100)
@@ -14,9 +19,23 @@
 (defconst gl-tc-2-y 203)
 (defconst gl-num-placed-initial-tcs 204)
 
+; Coordinates of the Wonder.
+(defconst gl-wonder-x 210)
+(defconst gl-wonder-y 211)
+
+; Flag to indicate whether to process search results for sending units near the
+; Wonder to attack it.
+(defconst gl-attack-wonder-search-state 220)
+(defconst no-search 0)
+(defconst search-complete 1)
+
 ; Timer to launch repeated attacks once attacking starts.
 (defconst t-attack 1)
 (defconst attack-interval 60)
+
+; Timer to check for units near the wonder and make them attack.
+(defconst t-near-wonder 2)
+(defconst near-wonder-interval 45)
 
 ; Initializes strategic numbers.
 (defrule
@@ -74,10 +93,10 @@
   (true)
 =>
   ; Initializes the TC placement locations.
-  (set-goal gl-tc-1-x 156)
-  (set-goal gl-tc-1-y 60)
-  (set-goal gl-tc-2-x 167)
-  (set-goal gl-tc-2-y 54)
+  (set-goal gl-tc-1-x 149)
+  (set-goal gl-tc-1-y 66)
+  (set-goal gl-tc-2-x 177)
+  (set-goal gl-tc-2-y 80)
   (set-goal gl-num-placed-initial-tcs 0)
 
   (disable-self)
@@ -123,3 +142,269 @@
   (cc-add-resource gold 1000)
   (disable-self)
 )
+
+; Building management.
+
+(defrule
+  (building-type-count-total lumber-camp == 0)
+  (building-type-count-total town-center == 0)
+  (wood-amount < 100)
+  (can-buy-commodity wood)
+=>
+  (buy-commodity wood)
+)
+
+(defrule
+  (building-type-count-total town-center < 3)
+  (stone-amount < 100)
+  (can-buy-commodity stone)
+=>
+  (buy-commodity stone)
+)
+
+; Places the first two TCs at set locations.
+(defrule
+  (up-can-build-line 0 gl-tc-1-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-1-x gl-tc-1-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (up-can-build-line 0 gl-tc-2-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-2-x gl-tc-2-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (building-type-count-total town-center < 3)
+  (can-build town-center)
+  (goal gl-num-placed-initial-tcs 2)
+=>
+  (build town-center)
+)
+
+(defrule
+  (population-headroom > 0)
+  (housing-headroom <= 10)
+  (up-pending-objects c: house < 3) ; Build at most 3 Houses at once.
+  (can-build house)
+=>
+  (build house)
+)
+
+(defrule
+  (building-type-count-total castle < 1)
+  (stone-amount < 650)
+  (can-buy-commodity stone)
+=>
+  (buy-commodity stone)
+)
+
+(defrule
+  (building-type-count-total castle < 1)
+  (can-build castle)
+=>
+  (build castle)
+)
+
+(defrule
+  (building-type-count-total monastery < 1)
+  (can-build monastery)
+=>
+  (build monastery)
+)
+
+(defrule
+  (building-type-count-total barracks < 3)
+  (can-build barracks)
+=>
+  (build barracks)
+)
+
+(defrule
+  (building-type-count siege-workshop < 3)
+  (can-build siege-workshop)
+=>
+  (build siege-workshop)
+)
+
+(defrule
+  (building-type-count-total stable < 2)
+  (can-build stable)
+=>
+  (build stable)
+)
+
+(defrule
+  (building-type-count-total market < 1)
+  (can-build market)
+=>
+  (build market)
+)
+
+(defrule
+  (or
+    (building-type-count-total lumber-camp == 0)
+    (and
+      (building-type-count-total lumber-camp > 0)
+      (and
+        (dropsite-min-distance wood > 4)
+        (dropsite-min-distance wood < 255)
+      )
+    )
+  )
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+(defrule
+  (building-type-count-total lumber-camp < 3)
+  (unit-type-count-total villager > 30)
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+; Farms and Mills
+
+(defrule
+  (building-type-count-total farm < 80)
+  (up-pending-objects c: farm < 5)
+  (idle-farm-count < 5)
+  (can-build farm)
+=>
+  (build farm)
+)
+
+(defrule
+  (building-type-count-total farm > 20)
+  (building-type-count-total mill < 3)
+  (can-build mill)
+=>
+  (build mill)
+)
+
+(defrule
+  (unit-type-count-total villager < 100)
+  (can-train villager)
+=>
+  (train villager)
+)
+
+(defrule
+  (unit-type-count-total monk < 5)
+  (can-train monk)
+=>
+  (train monk)
+)
+
+(defrule
+  (unit-type-count siege-tower < 5)
+  (can-train siege-tower)
+=>
+  (train siege-tower)
+)
+
+(defrule
+  (unit-type-count-total teutonic-knight-line < 40)
+  (can-train teutonic-knight-line)
+=>
+  (train teutonic-knight-line)
+)
+
+(defrule
+  (unit-type-count-total mangonel-line < 10)
+  (can-train mangonel-line)
+=>
+  (train mangonel-line)
+)
+
+(defrule
+  (unit-type-count-total knight-line < 20)
+  (can-train knight-line)
+=>
+  (train knight-line)
+)
+
+(defrule
+  (unit-type-count-total militiaman-line < 20)
+  (can-train militiaman-line)
+=>
+  (train militiaman-line)
+)
+
+(defrule
+  (unit-type-count-total spearman-line < 20)
+  (can-train spearman-line)
+=>
+  (train spearman-line)
+)
+
+; TODO scale attack over time
+
+; Attack management
+
+(defrule
+  (game-time > 840)
+=>
+  (set-strategic-number sn-percent-attack-soldiers 100)
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+  (enable-timer t-near-wonder near-wonder-interval)
+  (disable-self)
+)
+
+(defrule
+  (timer-triggered t-attack)
+=>
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+)
+
+; Periodically tasks units within 30 tiles of the Wonder to attack it.
+(defrule
+  (timer-triggered t-near-wonder)
+=>
+  (set-goal gl-attack-wonder-search-state search-complete)
+  (up-full-reset-search)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-find-remote c: wonder c: 1)
+  (up-get-search-state gl-local-total)
+  (enable-timer t-near-wonder near-wonder-interval)
+)
+
+; TODO test
+(defrule
+  (goal gl-attack-wonder-search-state search-complete)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-get-point position-object gl-wonder-x)
+  (up-set-target-point gl-wonder-x)
+  (up-filter-distance c: -1 c: 30)
+  (up-find-local c: mangonel-line c: 60)
+  (up-find-local c: knight-line c: 60)
+  (up-find-local c: teutonic-knight-line c: 60)
+  (up-find-local c: militiaman-line c: 60)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-attack-wonder-search-state search-complete)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (up-target-objects 1 action-default -1 -1)
+)
+
+(defrule
+  (goal gl-attack-wonder-search-state search-complete)
+=>
+  (set-goal gl-attack-wonder-search-state no-search)
+)
+
+; TODO siege tower
