@@ -3,6 +3,15 @@
 ; Hand Cannoneers, Throwing Axemen, and a few Halbs. Adds in Bombard Cannons
 ; and tries to use the Castles to keep them safe and micro them.
 
+(defconst list-active 0)
+(defconst status-resource 3)
+
+(defconst sn-special-attack-influence3 111)
+(defconst sn-special-attack-type3 108)
+
+; Stone mine constant for use in remote searches.
+(defconst stone-mine 102)
+
 ; Local search results
 (defconst gl-local-total 100)
 (defconst gl-local-last 101)
@@ -34,6 +43,46 @@
 (defconst t-near-wonder 2)
 (defconst near-wonder-interval 45)
 
+; Goals for holding the x and y coordinates of the secondary Gold and Stone.
+(defconst gl-gold-x 300)
+(defconst gl-gold-y 301)
+(defconst gl-stone-x 302)
+(defconst gl-stone-y 303)
+(defconst gl-gold-search 304)
+(defconst gl-stone-search 305)
+
+; Forward Castle Coordinates
+(defconst gl-castle-1a-x 350)
+(defconst gl-castle-1a-y 351)
+(defconst gl-castle-1b-x 352)
+(defconst gl-castle-1b-y 353)
+(defconst gl-castle-2-x 354)
+(defconst gl-castle-2-y 355)
+(defconst gl-castle-3-x 356)
+(defconst gl-castle-3-y 357)
+
+; Timers checking the status of the mines.
+(defconst t-stone-search 2)
+(defconst t-gold-search 3)
+(defconst mine-interval 10)
+
+; Timer for checking when to build a Castle.
+(defconst t-castle 4)
+(defconst castle-build-interval 15)
+(defconst gl-castle-search 358)
+
+; Flags to check whether castles are constructed in their forward locations.
+(defconst gl-is-castle1-present 359)
+(defconst gl-is-castle2-present 360)
+(defconst gl-is-castle3-present 361)
+(defconst absent 0)
+(defconst present 1)
+
+; Flags to control whether the first castle should be built.
+(defconst gl-build-castle-1 362)
+(defconst no-build 0)
+(defconst yes-build 1)
+
 ; Initializes strategic numbers.
 (defrule
   (true)
@@ -59,12 +108,13 @@
 
   ; Initializes land Villager gatherer percentages.
   (set-strategic-number sn-food-gatherer-percentage 30)
-  (set-strategic-number sn-wood-gatherer-percentage 25)
+  (set-strategic-number sn-wood-gatherer-percentage 45)
   (set-strategic-number sn-gold-gatherer-percentage 25)
-  (set-strategic-number sn-stone-gatherer-percentage 20)
+  (set-strategic-number sn-stone-gatherer-percentage 0)
 
   ; Increases focus of attacks on the Wonder.
-	(set-strategic-number sn-special-attack-type1 wonder)
+	(set-strategic-number sn-special-attack-type3 1)
+  (set-strategic-number sn-special-attack-influence3 1)
 
   ; Makes attack groups larger.
   (set-strategic-number sn-maximum-attack-group-size 200)
@@ -82,6 +132,16 @@
   ; Let's the AI attack walls.
 	(set-strategic-number sn-wall-targeting-mode 1)
 
+  ; Allows dropsites to be closer together.
+  (set-strategic-number sn-dropsite-separation-distance 3)
+
+  (set-strategic-number sn-placement-zone-size 5)
+
+  ; Assigns at least 15 builders for Castles.
+  (up-assign-builders c: castle c: 15)
+
+  ; Prevents cancelling buildings when they are significantly completed.
+  (set-strategic-number sn-percent-building-cancellation 1)
   (disable-self)
 )
 
@@ -96,7 +156,31 @@
   (set-goal gl-tc-2-y 54)
   (set-goal gl-num-placed-initial-tcs 0)
 
+  ; Initializes Gold and Stone coordinates.
+  (set-goal gl-gold-x 110)
+  (set-goal gl-gold-y 75)
+  (set-goal gl-stone-x 133)
+  (set-goal gl-stone-y 63)
+
   (set-goal gl-attack-wonder-search-state no-search)
+  (set-goal gl-stone-search no-search)
+  (set-goal gl-gold-search no-search)
+
+  (set-goal gl-castle-1a-x 99)
+  (set-goal gl-castle-1a-y 92)
+  (set-goal gl-castle-1b-x 111)
+  (set-goal gl-castle-1b-y 99)
+  (set-goal gl-castle-2-x 103)
+  (set-goal gl-castle-2-y 113)
+  (set-goal gl-castle-3-x 93)
+  (set-goal gl-castle-3-y 125)
+
+  (set-goal gl-castle-search no-search)
+
+  (set-goal gl-is-castle1-present absent)
+  (set-goal gl-is-castle2-present absent)
+  (set-goal gl-is-castle3-present absent)
+  (set-goal gl-build-castle-1 no-build)
 
   (disable-self)
 )
@@ -231,6 +315,177 @@
   (build house)
 )
 
+; place-point Castle Placement
+; If all 3 Castles are up, then just build-forward more Castles.
+; If there is a Castle in any spot other than spot 2, build a Castle in spot 2.
+; If there is no Castle in spot 3 and a Castle in spot 2, then build a Castle in
+; spot 3.
+; If there is no Castle in spot 2 and no Castle in spot 3, then check if either
+; spot 1 is occupied. If so then build a Castle in spot 2. Otherwise build a
+; castle in spot 1.
+
+(defrule
+  (not (up-timer-status t-castle == timer-running))
+=>
+  (set-goal gl-castle-search search-complete)
+  (set-goal gl-is-castle1-present absent)
+  (set-goal gl-is-castle2-present absent)
+  (set-goal gl-is-castle3-present absent)
+  (set-goal gl-build-castle-1 no-build)
+)
+
+; Searches for a Castle in the first spot.
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-castle-1a-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: castle c: 1)
+  (up-reset-filters)
+  (up-set-target-point gl-castle-1b-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: castle c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (set-goal gl-is-castle1-present present)
+)
+
+; Searches for a Castle in the second spot.
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-castle-2-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: castle c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (set-goal gl-is-castle2-present present)
+)
+
+; Searches for a Castle in the second spot.
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-castle-3-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: castle c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (set-goal gl-is-castle3-present present)
+)
+
+; Builds Castles based on which Castles already are standing.
+
+; Continues building forward Castles if all 3 spots are occupied.
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-is-castle1-present present)
+  (goal gl-is-castle2-present present)
+  (goal gl-is-castle3-present present)
+  (not (up-pending-placement c: castle))
+  (up-pending-objects c: castle == 0)
+  (can-build castle)
+=>
+  (build-forward castle)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (or
+    (goal gl-is-castle1-present absent)
+    (or
+      (goal gl-is-castle2-present absent)
+      (goal gl-is-castle3-present absent)
+    )
+  )
+  (stone-amount < 650)
+  (can-buy-commodity stone)
+=>
+  (buy-commodity stone)
+)
+
+; Builds the 3rd Castle if the 2nd is present.
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-is-castle2-present present)
+  (goal gl-is-castle3-present absent)
+  (not (up-pending-placement c: castle))
+  (up-pending-objects c: castle == 0)
+  (up-can-build-line 0 gl-castle-3-x c: castle)
+=>
+  (up-build-line gl-castle-3-x gl-castle-3-x c: castle)
+)
+
+; Builds the 2nd Castle if the 1st or 3rd are present.
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-is-castle2-present absent)
+  (or
+    (goal gl-is-castle1-present present)
+    (goal gl-is-castle3-present present)
+  )
+  (not (up-pending-placement c: castle))
+  (up-pending-objects c: castle == 0)
+  (up-can-build-line 0 gl-castle-2-x c: castle)
+=>
+  (up-build-line gl-castle-2-x gl-castle-2-x c: castle)
+)
+
+; Builds the 1st Castle randomly in one of its two locations.
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-is-castle1-present absent)
+  (not (up-pending-placement c: castle))
+  (up-pending-objects c: castle == 0)
+  (up-can-build-line 0 gl-castle-1a-x c: castle)
+=>
+  (generate-random-number 2)
+  (set-goal gl-build-castle-1 yes-build)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-build-castle-1 yes-build)
+  (random-number == 1)
+=>
+  (up-build-line gl-castle-1a-x gl-castle-1a-x c: castle)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-build-castle-1 yes-build)
+  (random-number == 2)
+=>
+  (up-build-line gl-castle-1b-x gl-castle-1b-x c: castle)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (set-goal gl-castle-search no-search)
+)
+
+; Remaining buildings.
+
 (defrule
   (building-type-count-total monastery < 1)
   (can-build monastery)
@@ -257,7 +512,7 @@
   (building-type-count-total stable < 10)
   (can-build stable)
 =>
-  (build stable)
+  (build-forward stable)
 )
 
 (defrule
@@ -332,12 +587,82 @@
   (build mill)
 )
 
-; TODO better Mills
-; TODO Mining Camps, need to Mine the Stone
+; Shifts Villagers to Stone once a Mining Camp is constructed.
+(defrule
+  (building-type-count mining-camp >= 1)
+=>
+  (set-strategic-number sn-food-gatherer-percentage 30)
+  (set-strategic-number sn-wood-gatherer-percentage 25)
+  (set-strategic-number sn-gold-gatherer-percentage 25)
+  (set-strategic-number sn-stone-gatherer-percentage 20)
+  (disable-self)
+)
 
-; TODO
-; Search near the Stone
-; If there is Stone but no mining camp, build a mining camp
+(defrule
+  (game-time > 60)
+  (up-timer-status t-stone-search != timer-running)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-stone-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: stone c: 4)
+  (up-get-search-state gl-local-total)
+  (set-goal gl-stone-search search-complete)
+  (enable-timer t-stone-search mine-interval)
+)
+
+(defrule
+  (goal gl-stone-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-stone-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-stone-search search-complete)
+=>
+  (set-goal gl-stone-search no-search)
+)
+
+(defrule
+  (game-time > 480)
+  (up-timer-status t-gold-search != timer-running)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 7)
+  (up-get-search-state gl-local-total)
+  (set-goal gl-gold-search search-complete)
+  (enable-timer t-gold-search mine-interval)
+)
+
+(defrule
+  (goal gl-gold-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-search search-complete)
+=>
+  (set-goal gl-gold-search no-search)
+)
 
 (defrule
   (unit-type-count-total villager < 100)
@@ -345,22 +670,6 @@
 =>
   (train villager)
 )
-
-; TODO Castles, aggressive and forward (may need to decrease delete percentage)
-
-; TODO
-; when base is established, check if there is a Castle on the first forward hill
-; if not, place a Castle on that hill
-
-; TODO
-; Check if there is a Castle on the first hill.
-; If there is, check if there is a Castle in any of the first forward spots.
-; If not, pick a spot randomly and place a Castle there.
-
-; TODO
-; Check if there is a Castle in any of the first forward spots.
-; If so, check if there is a Castle in any of the second forward spots.
-; If not, then pick a spot randomly and place a Castle there.
 
 ; Unit production
 
@@ -477,7 +786,7 @@
   (goal gl-attack-wonder-search-state search-complete)
   (up-compare-goal gl-local-total > 0)
 =>
-  (up-target-objects 1 action-default -1 -1)
+  (up-target-objects 1 action-default -1 stance-stand-ground)
 )
 
 (defrule
@@ -487,3 +796,5 @@
 )
 
 ; TODO Bombard Cannon micro
+; TODO balance unit creation as time increases
+; TODO ensure the Wonder is attacked

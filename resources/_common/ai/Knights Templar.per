@@ -3,6 +3,12 @@
 ; Halbardiers. Attempts the micro the Teutonic Knights over walls with Siege
 ; Towers.
 
+(defconst list-active 0)
+(defconst status-resource 3)
+
+(defconst sn-special-attack-influence3 111)
+(defconst sn-special-attack-type3 108)
+
 ; For some reason siege-tower is not a pre-defined constant.
 (defconst siege-tower 1105)
 
@@ -37,6 +43,15 @@
 (defconst t-near-wonder 2)
 (defconst near-wonder-interval 45)
 
+; Goals for holding the x and y coordinates of the secondary Gold and Stone.
+(defconst gl-gold-x 300)
+(defconst gl-gold-y 301)
+(defconst gl-gold-search 302)
+
+; Timers checking the status of the mines.
+(defconst t-gold-search 2)
+(defconst mine-interval 10)
+
 ; Initializes strategic numbers.
 (defrule
   (true)
@@ -67,7 +82,8 @@
   (set-strategic-number sn-stone-gatherer-percentage 0)
 
   ; Increases focus of attacks on the Wonder.
-	(set-strategic-number sn-special-attack-type1 wonder)
+	(set-strategic-number sn-special-attack-type3 1)
+  (set-strategic-number sn-special-attack-influence3 1)
 
   ; Makes attack groups larger.
   (set-strategic-number sn-maximum-attack-group-size 200)
@@ -85,6 +101,13 @@
   ; Let's the AI attack walls.
 	(set-strategic-number sn-wall-targeting-mode 1)
 
+  ; Allows dropsites to be closer together.
+  (set-strategic-number sn-dropsite-separation-distance 3)
+
+  (set-strategic-number sn-placement-zone-size 5)
+
+  ; Prevents cancelling buildings when they are significantly completed.
+  (set-strategic-number sn-percent-building-cancellation 1)
   (disable-self)
 )
 
@@ -98,6 +121,10 @@
   (set-goal gl-tc-2-x 177)
   (set-goal gl-tc-2-y 80)
   (set-goal gl-num-placed-initial-tcs 0)
+
+  (set-goal gl-gold-x 110)
+  (set-goal gl-gold-y 78)
+  (set-goal gl-gold-search no-search)
 
   (disable-self)
 )
@@ -290,6 +317,39 @@
 )
 
 (defrule
+  (game-time > 600)
+  (up-timer-status t-gold-search != timer-running)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 7)
+  (up-get-search-state gl-local-total)
+  (set-goal gl-gold-search search-complete)
+  (enable-timer t-gold-search mine-interval)
+)
+
+(defrule
+  (goal gl-gold-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-search search-complete)
+=>
+  (set-goal gl-gold-search no-search)
+)
+
+(defrule
   (unit-type-count-total villager < 100)
   (can-train villager)
 =>
@@ -398,7 +458,7 @@
   (goal gl-attack-wonder-search-state search-complete)
   (up-compare-goal gl-local-total > 0)
 =>
-  (up-target-objects 1 action-default -1 -1)
+  (up-target-objects 1 action-default -1 stance-stand-ground)
 )
 
 (defrule

@@ -2,6 +2,9 @@
 ; Makes mainly Longbowmen and Trebuchets. Also adds in some Skirmishers and
 ; Heavy Scorpions.
 
+(defconst sn-special-attack-influence3 111)
+(defconst sn-special-attack-type3 108)
+
 ; Local search results
 (defconst gl-local-total 100)
 (defconst gl-local-last 101)
@@ -67,7 +70,8 @@
   (set-strategic-number sn-stone-gatherer-percentage 20)
 
   ; Increases focus of attacks on the Wonder.
-	(set-strategic-number sn-special-attack-type1 wonder)
+	(set-strategic-number sn-special-attack-type3 1)
+  (set-strategic-number sn-special-attack-influence3 1)
 
   ; Makes attack groups larger.
   (set-strategic-number sn-maximum-attack-group-size 200)
@@ -85,6 +89,8 @@
   ; Let's the AI attack walls.
 	(set-strategic-number sn-wall-targeting-mode 1)
 
+  ; Prevents cancelling buildings.
+  (set-strategic-number sn-percent-building-cancellation 1)
   (disable-self)
 )
 
@@ -338,7 +344,7 @@
 ; Attack management
 
 (defrule
-  (game-time > 840)
+  (game-time > 1020)
 =>
   (set-strategic-number sn-percent-attack-soldiers 100)
   (attack-now)
@@ -386,7 +392,7 @@
   (goal gl-attack-wonder-search-state search-complete)
   (up-compare-goal gl-local-total > 0)
 =>
-  (up-target-objects 1 action-default -1 -1)
+  (up-target-objects 1 action-default -1 stance-stand-ground)
 )
 
 (defrule

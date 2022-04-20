@@ -6,6 +6,9 @@
 ; Post-Imperial Age. They research technologies and become stronger over time
 ; as their attacks go on.
 
+(defconst sn-special-attack-influence3 111)
+(defconst sn-special-attack-type3 108)
+
 ; Play state initialized to base building.
 ; Rules for population limit, unit creation, and attack aggression depend on
 ; the state.
@@ -66,7 +69,8 @@
   (set-strategic-number sn-stone-gatherer-percentage 0)
 
   ; Increases focus of attacks on the Wonder.
-	(set-strategic-number sn-special-attack-type1 wonder)
+	(set-strategic-number sn-special-attack-type3 1)
+  (set-strategic-number sn-special-attack-influence3 1)
 
   ; Makes attack groups larger.
   (set-strategic-number sn-maximum-attack-group-size 200)
@@ -83,6 +87,8 @@
   ; Enables intelligent attacking.
 	(set-strategic-number sn-attack-intelligence 1)
 
+  ; Prevents cancelling buildings when they are significantly completed.
+  (set-strategic-number sn-percent-building-cancellation 1)
   (disable-self)
 )
 
@@ -326,7 +332,7 @@
 )
 
 (defrule
-  (unit-type-count-total villager < 50)
+  (unit-type-count-total villager < 65)
   (can-train villager)
 =>
   (train villager)
@@ -574,9 +580,9 @@
 
 ; All-in attack phase.
 
-; Sends all land soldiers to join the attack after 25 minutes.
+; Sends all land soldiers to join the attack after 23 minutes.
 (defrule
-  (game-time > 1500)
+  (game-time > 1380)
 =>
   (set-strategic-number sn-percent-attack-soldiers 100)
   (attack-now)
@@ -617,3 +623,19 @@
 ; TODO eventually focus cannon galleons upon the wonder, they can hit it from
 ; the coast
 ; TODO resource sling
+
+(defrule
+  (or
+    (and
+      (game-time > 720)
+      (building-type-count-total fish-trap < 5)
+    )
+    (and
+      (game-time > 1000)
+      (building-type-count-total fish-trap < 15)
+    )
+  )
+  (can-build fish-trap)
+=>
+  (build fish-trap)
+)

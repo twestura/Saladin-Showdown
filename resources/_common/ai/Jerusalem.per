@@ -3,6 +3,12 @@
 ; Adds in Fast Fire Ships and a few Elite Cannon Galleons towards the end of
 ; the game.
 
+(defconst list-active 0)
+(defconst status-resource 3)
+
+(defconst sn-special-attack-influence3 111)
+(defconst sn-special-attack-type3 108)
+
 ; Local search results
 (defconst gl-local-total 100)
 (defconst gl-local-last 101)
@@ -20,6 +26,14 @@
 (defconst gl-wonder-x 210)
 (defconst gl-wonder-y 211)
 
+; Goals for holding the x and y coordinates of the secondary Gold.
+(defconst gl-gold-main-x 300)
+(defconst gl-gold-main-y 301)
+(defconst gl-gold-main-search 302)
+(defconst gl-gold-island-x 303)
+(defconst gl-gold-island-y 304)
+(defconst gl-gold-island-search 305)
+
 ; Flag to indicate whether to process search results for sending units near the
 ; Wonder to attack it.
 (defconst gl-attack-wonder-search-state 220)
@@ -33,6 +47,11 @@
 ; Timer to check for units near the wonder and make them attack.
 (defconst t-near-wonder 2)
 (defconst near-wonder-interval 45)
+
+; Timer checking the status of the mine.
+(defconst t-gold-main-search 2)
+(defconst t-gold-island-search 3)
+(defconst mine-interval 10)
 
 ; Initializes strategic numbers.
 (defrule
@@ -64,7 +83,8 @@
   (set-strategic-number sn-stone-gatherer-percentage 0)
 
   ; Increases focus of attacks on the Wonder.
-	(set-strategic-number sn-special-attack-type1 wonder)
+	(set-strategic-number sn-special-attack-type3 1)
+  (set-strategic-number sn-special-attack-influence3 1)
 
   ; Makes attack groups larger.
   (set-strategic-number sn-maximum-attack-group-size 200)
@@ -82,6 +102,8 @@
   ; Let's the AI attack walls.
 	(set-strategic-number sn-wall-targeting-mode 1)
 
+  ; Prevents cancelling buildings when they are significantly completed.
+  (set-strategic-number sn-percent-building-cancellation 1)
   (disable-self)
 )
 
@@ -95,6 +117,15 @@
   (set-goal gl-tc-2-x 139)
   (set-goal gl-tc-2-y 184)
   (set-goal gl-num-placed-initial-tcs 0)
+
+  ; Initializes Gold and Stone coordinates.
+  (set-goal gl-gold-main-x 133)
+  (set-goal gl-gold-main-y 181)
+  (set-goal gl-gold-island-x 104)
+  (set-goal gl-gold-island-y 177)
+
+  (set-goal gl-gold-main-search no-search)
+  (set-goal gl-gold-island-search no-search)
 
   (disable-self)
 )
@@ -306,8 +337,72 @@
   (build mill)
 )
 
-; TODO Mining camp near the "island" Gold
-; Mining camp to saturate the "main" Gold
+; Mining camp to saturate the "main" Gold.
+(defrule
+  (up-timer-status t-gold-main-search != timer-running)
+=>
+  (set-goal gl-gold-main-search search-complete)
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-main-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 10)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-gold-main-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-main-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-main-search search-complete)
+=>
+  (set-goal gl-gold-main-search no-search)
+  (enable-timer t-gold-main-search mine-interval)
+)
+
+; Mining camp near the "island" Gold
+(defrule
+  (game-time > 300)
+  (up-timer-status t-gold-island-search != timer-running)
+=>
+  (set-goal gl-gold-island-search search-complete)
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-island-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 10)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-gold-island-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-island-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-island-search search-complete)
+=>
+  (set-goal gl-gold-island-search no-search)
+  (enable-timer t-gold-island-search mine-interval)
+)
 
 (defrule
   (unit-type-count-total villager < 100)
@@ -349,6 +444,14 @@
   (can-train battering-ram-line)
 =>
   (train battering-ram-line)
+)
+
+(defrule
+  (game-time > 1200)
+  (unit-type-count-total monk < 25)
+  (can-train monk)
+=>
+  (train monk)
 )
 
 (defrule
@@ -454,7 +557,7 @@
   (goal gl-attack-wonder-search-state search-complete)
   (up-compare-goal gl-local-total > 0)
 =>
-  (up-target-objects 1 action-default -1 -1)
+  (up-target-objects 1 action-default -1 stance-stand-ground)
 )
 
 (defrule
