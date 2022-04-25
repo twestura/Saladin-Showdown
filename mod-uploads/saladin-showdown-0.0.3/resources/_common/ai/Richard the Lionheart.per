@@ -1,0 +1,516 @@
+; Richard the Lionheart Player
+; Makes mainly Longbowmen and Trebuchets. Also adds in some Skirmishers and
+; Heavy Scorpions.
+
+(defconst list-active 0)
+(defconst status-resource 3)
+
+; Local search results
+(defconst gl-local-total 100)
+(defconst gl-local-last 101)
+(defconst gl-remote-total 102)
+(defconst gl-remote-last 103)
+
+; Locations at which to place the first two additional Town Centers.
+(defconst gl-tc-1-x 200)
+(defconst gl-tc-1-y 201)
+(defconst gl-tc-2-x 202)
+(defconst gl-tc-2-y 203)
+(defconst gl-tc-3-x 204)
+(defconst gl-tc-3-y 205)
+(defconst gl-tc-4-x 206)
+(defconst gl-tc-4-y 207)
+(defconst gl-num-placed-initial-tcs 208)
+
+; Coordinates of the Wonder.
+(defconst gl-wonder-x 210)
+(defconst gl-wonder-y 211)
+
+; Goals for holding the x and y coordinates of the secondary Gold.
+(defconst gl-gold-main-x 300)
+(defconst gl-gold-main-y 301)
+(defconst gl-gold-main-search 302)
+(defconst gl-gold-right-x 303)
+(defconst gl-gold-right-y 304)
+(defconst gl-gold-right-search 305)
+
+; Flag to indicate whether to process search results for sending units near the
+; Wonder to attack it.
+(defconst gl-attack-wonder-search-state 220)
+(defconst no-search 0)
+(defconst search-complete 1)
+
+; Timer to launch repeated attacks once attacking starts.
+(defconst t-attack 1)
+(defconst attack-interval 60)
+
+; Timer to check for units near the wonder and make them attack.
+(defconst t-near-wonder 2)
+(defconst near-wonder-interval 45)
+
+; Timer checking the status of the mine.
+(defconst t-gold-main-search 3)
+(defconst t-gold-right-search 4)
+(defconst mine-interval 10)
+
+; Initializes strategic numbers.
+(defrule
+  (true)
+=>
+  ; Enables multiple buildings of the same type to be constructed at once.
+  (set-strategic-number sn-enable-new-building-system 1)
+
+  ; Allows dropsites to be adjacent to resources.
+  (set-strategic-number sn-allow-adjacent-dropsites 1)
+
+  ; Initializes Villagers to construct buildings.
+  (set-strategic-number sn-percent-civilian-explorers 0)
+  (set-strategic-number sn-percent-civilian-builders 100)
+  (set-strategic-number sn-percent-civilian-gatherers 0)
+  (set-strategic-number sn-cap-civilian-explorers 0)
+  (set-strategic-number sn-cap-civilian-builders 200)
+  (set-strategic-number sn-total-number-explorers 1)
+  (set-strategic-number sn-number-explore-groups 1)
+  (set-strategic-number sn-maximum-explore-group-size 1)
+
+  ; Initializes Army to defend.
+  (set-strategic-number sn-percent-attack-soldiers 0)
+
+  ; Initializes land Villager gatherer percentages.
+  (set-strategic-number sn-food-gatherer-percentage 30)
+  (set-strategic-number sn-wood-gatherer-percentage 25)
+  (set-strategic-number sn-gold-gatherer-percentage 25)
+  (set-strategic-number sn-stone-gatherer-percentage 20)
+
+  ; Makes attack groups larger.
+  (set-strategic-number sn-maximum-attack-group-size 200)
+  (set-strategic-number sn-minimum-attack-group-size 20)
+
+  ; Allows units to patroll while enroute to attacking distant targets.
+  (set-strategic-number sn-enable-patrol-attack 1)
+
+  ; Target the human player 1 for attacks.
+  (set-strategic-number sn-target-player-number 1)
+
+  ; Enables intelligent attacking.
+	(set-strategic-number sn-attack-intelligence 1)
+
+  ; Let's the AI attack walls.
+	(set-strategic-number sn-wall-targeting-mode 1)
+
+  ; Assigns at least 5 builders for Castles.
+  (up-assign-builders c: castle c: 5)
+
+  ; Prevents cancelling buildings.
+  (set-strategic-number sn-percent-building-cancellation 1)
+  (disable-self)
+)
+
+; Initializes goals.
+(defrule
+  (true)
+=>
+  ; Initializes the TC placement locations.
+  (set-goal gl-tc-1-x 162)
+  (set-goal gl-tc-1-y 102)
+  (set-goal gl-tc-2-x 174)
+  (set-goal gl-tc-2-y 109)
+  (set-goal gl-tc-3-x 172)
+  (set-goal gl-tc-3-y 122)
+  (set-goal gl-tc-4-x 175)
+  (set-goal gl-tc-4-y 136)
+  (set-goal gl-num-placed-initial-tcs 0)
+
+  ; Initializes Gold coordinates.
+  (set-goal gl-gold-main-x 168)
+  (set-goal gl-gold-main-y 128)
+  (set-goal gl-gold-right-x 185)
+  (set-goal gl-gold-right-y 171)
+
+  ; Initializes DUC guard goals.
+  (set-goal gl-attack-wonder-search-state no-search)
+  (set-goal gl-gold-main-search no-search)
+  (set-goal gl-gold-right-search no-search)
+
+  (disable-self)
+)
+
+; Initializes Longbowman micro.
+(defrule
+  (true)
+=>
+  (set-difficulty-parameter ability-to-dodge-missiles 30)
+  (set-difficulty-parameter ability-to-maintain-distance 5)
+)
+
+; Resign condition
+(defrule
+	(military-population < 4)
+	(unit-type-count-total villager < 1)
+	(not (can-train villager))
+  (building-type-count town-center < 1)
+  (building-type-count castle < 1)
+=>
+  (chat-to-all "Alas, mine Trebuchets were not heroic enough.")
+  (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
+  (resign)
+  (disable-self)
+)
+
+; Cheat resources
+
+(defrule
+  (game-time >= 1350)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1500)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+; Building management.
+
+(defrule
+  (building-type-count-total lumber-camp == 0)
+  (building-type-count-total town-center == 0)
+  (wood-amount < 100)
+  (can-buy-commodity wood)
+=>
+  (buy-commodity wood)
+)
+
+(defrule
+  (building-type-count-total town-center < 3)
+  (stone-amount < 100)
+  (can-buy-commodity stone)
+=>
+  (buy-commodity stone)
+)
+
+; Places the first two TCs at set locations.
+(defrule
+  (up-can-build-line 0 gl-tc-1-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-1-x gl-tc-1-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (up-can-build-line 0 gl-tc-2-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-2-x gl-tc-2-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (up-can-build-line 0 gl-tc-3-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-3-x gl-tc-3-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (up-can-build-line 0 gl-tc-4-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-4-x gl-tc-4-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (game-time > 300)
+  (building-type-count-total town-center < 3)
+  (can-build town-center)
+  (goal gl-num-placed-initial-tcs 4)
+=>
+  (build town-center)
+)
+
+(defrule
+  (population-headroom > 0)
+  (housing-headroom <= 10)
+  (up-pending-objects c: house < 3) ; Build at most 3 Houses at once.
+  (can-build house)
+=>
+  (build house)
+)
+
+(defrule
+  (building-type-count-total castle < 7)
+  (can-build castle)
+=>
+  (build castle)
+)
+
+(defrule
+  (building-type-count-total monastery < 1)
+  (can-build monastery)
+=>
+  (build monastery)
+)
+
+(defrule
+  (building-type-count-total siege-workshop < 2)
+  (can-build siege-workshop)
+=>
+  (build siege-workshop)
+)
+
+(defrule
+  (unit-type-count-total archery-range < 2)
+  (can-build archery-range)
+=>
+  (build archery-range)
+)
+
+(defrule
+  (building-type-count-total market < 1)
+  (can-build market)
+=>
+  (build market)
+)
+
+(defrule
+  (or
+    (building-type-count-total lumber-camp == 0)
+    (and
+      (building-type-count-total lumber-camp > 0)
+      (and
+        (dropsite-min-distance wood > 4)
+        (dropsite-min-distance wood < 255)
+      )
+    )
+  )
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+(defrule
+  (building-type-count-total lumber-camp < 3)
+  (unit-type-count-total villager > 30)
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+; Farms and Mills
+
+(defrule
+  (building-type-count-total farm < 80)
+  (up-pending-objects c: farm < 5)
+  (idle-farm-count < 5)
+  (can-build farm)
+=>
+  (build farm)
+)
+
+(defrule
+  (building-type-count-total farm > 20)
+  (building-type-count-total mill < 3)
+  (can-build mill)
+=>
+  (build mill)
+)
+
+; Mining camp to saturate the "main" Gold.
+(defrule
+  (up-timer-status t-gold-main-search != timer-running)
+=>
+  (set-goal gl-gold-main-search search-complete)
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-main-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 10)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-gold-main-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-main-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-main-search search-complete)
+=>
+  (set-goal gl-gold-main-search no-search)
+  (enable-timer t-gold-main-search mine-interval)
+)
+
+; Mining camp near the "right" Gold
+(defrule
+  (game-time > 780)
+  (up-timer-status t-gold-right-search != timer-running)
+=>
+  (set-goal gl-gold-right-search search-complete)
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-right-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 10)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-gold-right-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-right-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-right-search search-complete)
+=>
+  (set-goal gl-gold-right-search no-search)
+  (enable-timer t-gold-right-search mine-interval)
+)
+
+(defrule
+  (unit-type-count-total villager < 100)
+  (can-train villager)
+=>
+  (train villager)
+)
+
+(defrule
+  (unit-type-count-total monk < 1)
+  (can-train monk)
+=>
+  (train monk)
+)
+
+(defrule
+  (game-time > 1200)
+  (unit-type-count-total trebuchet < 40)
+  (can-build trebuchet)
+=>
+  (build trebuchet)
+)
+
+(defrule
+  (or
+    (unit-type-count-total longbowman-line < 20)
+    (and
+      (game-time > 1200)
+      (unit-type-count-total longbowman-line < 60)
+    )
+  )
+  (can-train longbowman-line)
+=>
+  (train longbowman-line)
+)
+
+; TODO should I used trebuchet-set or other trebuchet values here?
+(defrule
+  (unit-type-count-total trebuchet < 5)
+  (can-train trebuchet)
+=>
+  (train trebuchet)
+)
+
+(defrule
+  (unit-type-count-total skirmisher-line < 20)
+  (can-train skirmisher-line)
+=>
+  (train skirmisher-line)
+)
+
+(defrule
+  (unit-type-count-total scorpion-line < 4)
+  (can-train scorpion-line)
+=>
+  (train scorpion-line)
+)
+
+; Attack management
+
+(defrule
+  (town-under-attack)
+=>
+  (attack-now)
+)
+
+(defrule
+  (game-time > 1020)
+=>
+  (set-strategic-number sn-percent-attack-soldiers 100)
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+  (enable-timer t-near-wonder near-wonder-interval)
+  (disable-self)
+)
+
+(defrule
+  (timer-triggered t-attack)
+=>
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+)
+
+; Periodically tasks units within 30 tiles of the Wonder to attack it.
+(defrule
+  (timer-triggered t-near-wonder)
+=>
+  (set-goal gl-attack-wonder-search-state search-complete)
+  (up-full-reset-search)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-find-remote c: wonder c: 1)
+  (up-get-search-state gl-local-total)
+  (enable-timer t-near-wonder near-wonder-interval)
+)
+
+; TODO test
+(defrule
+  (goal gl-attack-wonder-search-state search-complete)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-get-point position-object gl-wonder-x)
+  (up-set-target-point gl-wonder-x)
+  (up-filter-distance c: -1 c: 30)
+  ; TODO test Treb values
+  (up-find-local c: trebuchet c: 60)
+  (up-find-local c: trebuchet-set c: 60)
+  (up-find-local c: longbowman-line c: 60)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-attack-wonder-search-state search-complete)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (up-target-objects 1 action-default -1 stance-stand-ground)
+)
+
+(defrule
+  (goal gl-attack-wonder-search-state search-complete)
+=>
+  (set-goal gl-attack-wonder-search-state no-search)
+)
