@@ -6,6 +6,9 @@
 (defconst list-active 0)
 (defconst status-resource 3)
 
+; Monk with Relic object ID
+(defconst monk-with-relic 286)
+
 ; For some reason siege-tower is not a pre-defined constant.
 (defconst siege-tower 1105)
 
@@ -355,14 +358,15 @@
 )
 
 (defrule
-  (unit-type-count-total monk < 5)
+  (unit-type-count-total monk < 1)
+  (unit-type-count-total monk-with-relic < 1)
   (can-train monk)
 =>
   (train monk)
 )
 
 (defrule
-  (unit-type-count siege-tower < 5)
+  (unit-type-count siege-tower < 3)
   (can-train siege-tower)
 =>
   (train siege-tower)

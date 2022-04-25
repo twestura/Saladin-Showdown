@@ -9,6 +9,9 @@
 ; Stone mine constant for use in remote searches.
 (defconst stone-mine 102)
 
+; Monk with Relic object ID
+(defconst monk-with-relic 286)
+
 ; Local search results
 (defconst gl-local-total 100)
 (defconst gl-local-last 101)
@@ -499,6 +502,7 @@
 
 (defrule
   (unit-type-count-total monk < 1)
+  (unit-type-count-total monk-with-relic < 1)
   (can-train monk)
 =>
   (train monk)

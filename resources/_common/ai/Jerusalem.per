@@ -3,8 +3,14 @@
 ; Adds in Fast Fire Ships and a few Elite Cannon Galleons towards the end of
 ; the game.
 
+; TODO use Onagers to cut the forest on the right.
+; TODO tower land near the Gold and Docks
+
 (defconst list-active 0)
 (defconst status-resource 3)
+
+; Monk with Relic object ID
+(defconst monk-with-relic 286)
 
 ; Local search results
 (defconst gl-local-total 100)
@@ -261,7 +267,13 @@
 )
 
 (defrule
-  (building-type-count-total monastery < 4)
+  (or
+    (building-type-count-total monastery < 2)
+    (and
+      (game-time > 1200)
+      (building-type-count-total monastery < 5)
+    )
+  )
   (can-build monastery)
 =>
   (build monastery)
@@ -272,6 +284,14 @@
   (can-build stable)
 =>
   (build stable)
+)
+
+(defrule
+  (game-time > 1200)
+  (building-type-count-total siege-workshop < 7)
+  (can-build siege-workshop)
+=>
+  (build-forward siege-workshop)
 )
 
 (defrule
@@ -456,7 +476,16 @@
 )
 
 (defrule
-  (unit-type-count-total monk < 10)
+  (or
+    (and
+      (unit-type-count-total monk < 3)
+      (unit-type-count-total monk-with-relic >= 1)
+    )
+    (and
+      (unit-type-count-total monk < 4)
+      (unit-type-count-total monk-with-relic == 0)
+    )
+  )
   (can-train monk)
 =>
   (train monk)
@@ -484,7 +513,7 @@
 
 (defrule
   (game-time > 1200)
-  (unit-type-count-total monk < 25)
+  (unit-type-count-total monk < 12)
   (can-train monk)
 =>
   (train monk)
@@ -607,5 +636,3 @@
 =>
   (set-goal gl-attack-wonder-search-state no-search)
 )
-
-; TODO Monk micro

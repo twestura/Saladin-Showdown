@@ -9,6 +9,9 @@
 ; Loads this file first so its rule numbers are correct.
 (load "fishy")
 
+; Monk with Relic object ID
+(defconst monk-with-relic 286)
+
 (defconst list-active 0)
 (defconst status-resource 3)
 (defconst object-data-distance 44)
@@ -443,6 +446,7 @@
 
 (defrule
   (unit-type-count-total monk < 1)
+  (unit-type-count-total monk-with-relic < 1)
   (can-train monk)
 =>
   (train monk)
