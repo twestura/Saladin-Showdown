@@ -130,6 +130,9 @@
 
   (set-strategic-number sn-placement-zone-size 5)
 
+  ; Assigns at least 15 builders for Castles.
+  (up-assign-builders c: castle c: 15)
+
   ; Prevents cancelling buildings when they are significantly completed.
   (set-strategic-number sn-percent-building-cancellation 1)
   (disable-self)
@@ -182,9 +185,6 @@
 =>
   (set-difficulty-parameter ability-to-dodge-missiles 80)
   (set-difficulty-parameter ability-to-maintain-distance 15)
-
-  ; Assigns at least 15 builders for Castles.
-  (up-assign-builders c: castle c: 15)
 )
 
 ; Resign condition
@@ -192,8 +192,6 @@
   (military-population < 6)
   (unit-type-count-total villager < 1)
   (not (can-train villager))
-  (building-type-count town-center < 1)
-  (building-type-count castle < 1)
 =>
   (chat-to-all "The graceless Templars hath mined my Gold! Typical AI.")
   (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")

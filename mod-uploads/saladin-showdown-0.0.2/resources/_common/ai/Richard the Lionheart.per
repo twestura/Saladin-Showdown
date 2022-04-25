@@ -1,7 +1,6 @@
-; Jerusalem Player
-; Jerusalem focuses on Monks, Arbalests, Siege Rams, Halbs, Skirms, and Camels.
-; Adds in Fast Fire Ships and a few Elite Cannon Galleons towards the end of
-; the game.
+; Richard the Lionheart Player
+; Makes mainly Longbowmen and Trebuchets. Also adds in some Skirmishers and
+; Heavy Scorpions.
 
 (defconst list-active 0)
 (defconst status-resource 3)
@@ -17,7 +16,11 @@
 (defconst gl-tc-1-y 201)
 (defconst gl-tc-2-x 202)
 (defconst gl-tc-2-y 203)
-(defconst gl-num-placed-initial-tcs 204)
+(defconst gl-tc-3-x 204)
+(defconst gl-tc-3-y 205)
+(defconst gl-tc-4-x 206)
+(defconst gl-tc-4-y 207)
+(defconst gl-num-placed-initial-tcs 208)
 
 ; Coordinates of the Wonder.
 (defconst gl-wonder-x 210)
@@ -27,9 +30,9 @@
 (defconst gl-gold-main-x 300)
 (defconst gl-gold-main-y 301)
 (defconst gl-gold-main-search 302)
-(defconst gl-gold-island-x 303)
-(defconst gl-gold-island-y 304)
-(defconst gl-gold-island-search 305)
+(defconst gl-gold-right-x 303)
+(defconst gl-gold-right-y 304)
+(defconst gl-gold-right-search 305)
 
 ; Flag to indicate whether to process search results for sending units near the
 ; Wonder to attack it.
@@ -47,18 +50,8 @@
 
 ; Timer checking the status of the mine.
 (defconst t-gold-main-search 3)
-(defconst t-gold-island-search 4)
+(defconst t-gold-right-search 4)
 (defconst mine-interval 10)
-
-; Positions for where to build the forward Docks.
-(defconst gl-dock1-x 350)
-(defconst gl-dock1-y 351)
-(defconst gl-dock2-x 352)
-(defconst gl-dock2-y 353)
-(defconst gl-dock3-x 354)
-(defconst gl-dock3-y 355)
-(defconst gl-dock4-x 356)
-(defconst gl-dock4-y 357)
 
 ; Initializes strategic numbers.
 (defrule
@@ -84,10 +77,10 @@
   (set-strategic-number sn-percent-attack-soldiers 0)
 
   ; Initializes land Villager gatherer percentages.
-  (set-strategic-number sn-food-gatherer-percentage 35)
-  (set-strategic-number sn-wood-gatherer-percentage 35)
-  (set-strategic-number sn-gold-gatherer-percentage 30)
-  (set-strategic-number sn-stone-gatherer-percentage 0)
+  (set-strategic-number sn-food-gatherer-percentage 30)
+  (set-strategic-number sn-wood-gatherer-percentage 25)
+  (set-strategic-number sn-gold-gatherer-percentage 25)
+  (set-strategic-number sn-stone-gatherer-percentage 20)
 
   ; Makes attack groups larger.
   (set-strategic-number sn-maximum-attack-group-size 200)
@@ -105,7 +98,10 @@
   ; Let's the AI attack walls.
 	(set-strategic-number sn-wall-targeting-mode 1)
 
-  ; Prevents cancelling buildings when they are significantly completed.
+  ; Assigns at least 5 builders for Castles.
+  (up-assign-builders c: castle c: 5)
+
+  ; Prevents cancelling buildings.
   (set-strategic-number sn-percent-building-cancellation 1)
   (disable-self)
 )
@@ -116,78 +112,50 @@
 =>
   ; Initializes the TC placement locations.
   (set-goal gl-tc-1-x 162)
-  (set-goal gl-tc-1-y 182)
-  (set-goal gl-tc-2-x 139)
-  (set-goal gl-tc-2-y 184)
+  (set-goal gl-tc-1-y 102)
+  (set-goal gl-tc-2-x 174)
+  (set-goal gl-tc-2-y 109)
+  (set-goal gl-tc-3-x 172)
+  (set-goal gl-tc-3-y 122)
+  (set-goal gl-tc-4-x 175)
+  (set-goal gl-tc-4-y 136)
   (set-goal gl-num-placed-initial-tcs 0)
 
   ; Initializes Gold coordinates.
-  (set-goal gl-gold-main-x 133)
-  (set-goal gl-gold-main-y 181)
-  (set-goal gl-gold-island-x 104)
-  (set-goal gl-gold-island-y 177)
+  (set-goal gl-gold-main-x 168)
+  (set-goal gl-gold-main-y 128)
+  (set-goal gl-gold-right-x 185)
+  (set-goal gl-gold-right-y 171)
 
   ; Initializes DUC guard goals.
   (set-goal gl-attack-wonder-search-state no-search)
   (set-goal gl-gold-main-search no-search)
-  (set-goal gl-gold-island-search no-search)
-
-  ; Sets the position for placing the forward docks.
-  (set-goal gl-dock1-x 96)
-  (set-goal gl-dock1-y 180)
-  (set-goal gl-dock2-x 94)
-  (set-goal gl-dock2-y 185)
-  (set-goal gl-dock3-x 93)
-  (set-goal gl-dock3-y 173)
-  (set-goal gl-dock4-x 96)
-  (set-goal gl-dock4-y 163)
+  (set-goal gl-gold-right-search no-search)
 
   (disable-self)
 )
 
-; Resign condition
+; Initializes Longbowman micro.
+(defrule
+  (true)
+=>
+  (set-difficulty-parameter ability-to-dodge-missiles 30)
+  (set-difficulty-parameter ability-to-maintain-distance 5)
+)
 
+; Resign condition
 (defrule
 	(military-population < 4)
 	(unit-type-count-total villager < 1)
 	(not (can-train villager))
-  (building-type-count town-center < 1)
-  (building-type-count castle < 1)
 =>
-  (chat-to-all "Odsblood! I meant to pick Franks.")
+  (chat-to-all "Alas, mine Trebuchets were not heroic enough.")
   (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
   (resign)
   (disable-self)
 )
 
 ; Cheat resources
-
-(defrule
-  (game-time >= 840)
-=>
-  (cc-add-resource food 1000)
-  (cc-add-resource wood 1000)
-  (cc-add-resource gold 1000)
-  (disable-self)
-)
-
-(defrule
-  (game-time >= 1020)
-=>
-  (cc-add-resource food 1000)
-  (cc-add-resource wood 1000)
-  (cc-add-resource gold 1000)
-  (disable-self)
-)
-
-(defrule
-  (game-time >= 1200)
-=>
-  (cc-add-resource food 1000)
-  (cc-add-resource wood 1000)
-  (cc-add-resource gold 1000)
-  (disable-self)
-)
 
 (defrule
   (game-time >= 1350)
@@ -244,9 +212,26 @@
 )
 
 (defrule
+  (up-can-build-line 0 gl-tc-3-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-3-x gl-tc-3-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (up-can-build-line 0 gl-tc-4-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-4-x gl-tc-4-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (game-time > 300)
   (building-type-count-total town-center < 3)
   (can-build town-center)
-  (goal gl-num-placed-initial-tcs 2)
+  (goal gl-num-placed-initial-tcs 4)
 =>
   (build town-center)
 )
@@ -261,17 +246,17 @@
 )
 
 (defrule
-  (building-type-count-total monastery < 4)
-  (can-build monastery)
+  (building-type-count-total castle < 7)
+  (can-build castle)
 =>
-  (build monastery)
+  (build castle)
 )
 
 (defrule
-  (building-type-count-total stable < 2)
-  (can-build stable)
+  (building-type-count-total monastery < 1)
+  (can-build monastery)
 =>
-  (build stable)
+  (build monastery)
 )
 
 (defrule
@@ -282,45 +267,10 @@
 )
 
 (defrule
-  (building-type-count-total barracks < 2)
-  (can-build barracks)
-=>
-  (build barracks)
-)
-
-(defrule
-  (building-type-count-total archery-range < 2)
+  (unit-type-count-total archery-range < 2)
   (can-build archery-range)
 =>
   (build archery-range)
-)
-
-(defrule
-  (game-time > 1200)
-  (up-can-build-line 0 gl-dock1-x c: dock)
-=>
-  (up-build-line gl-dock1-x gl-dock1-x c: dock)
-)
-
-(defrule
-  (game-time > 1200)
-  (up-can-build-line 0 gl-dock2-x c: dock)
-=>
-  (up-build-line gl-dock2-x gl-dock2-x c: dock)
-)
-
-(defrule
-  (game-time > 1200)
-  (up-can-build-line 0 gl-dock3-x c: dock)
-=>
-  (up-build-line gl-dock3-x gl-dock3-x c: dock)
-)
-
-(defrule
-  (game-time > 1200)
-  (up-can-build-line 0 gl-dock4-x c: dock)
-=>
-  (up-build-line gl-dock4-x gl-dock4-x c: dock)
 )
 
 (defrule
@@ -406,14 +356,14 @@
   (enable-timer t-gold-main-search mine-interval)
 )
 
-; Mining camp near the "island" Gold.
+; Mining camp near the "right" Gold
 (defrule
-  (game-time > 300)
-  (up-timer-status t-gold-island-search != timer-running)
+  (game-time > 780)
+  (up-timer-status t-gold-right-search != timer-running)
 =>
-  (set-goal gl-gold-island-search search-complete)
+  (set-goal gl-gold-right-search search-complete)
   (up-full-reset-search)
-  (up-set-target-point gl-gold-island-x)
+  (up-set-target-point gl-gold-right-x)
   (up-filter-distance c: -1 c: 10)
   (up-find-local c: mining-camp c: 1)
   (up-filter-status c: status-resource c: list-active)
@@ -422,22 +372,22 @@
 )
 
 (defrule
-  (goal gl-gold-island-search search-complete)
+  (goal gl-gold-right-search search-complete)
   (up-compare-goal gl-local-total == 0)
   (up-compare-goal gl-remote-total > 0)
   (not (up-pending-placement c: mining-camp))
   (up-pending-objects c: mining-camp == 0)
   (up-can-build 1 c: mining-camp)
 =>
-  (up-set-target-point gl-gold-island-x)
+  (up-set-target-point gl-gold-right-x)
   (up-build place-point 0 c: mining-camp)
 )
 
 (defrule
-  (goal gl-gold-island-search search-complete)
+  (goal gl-gold-right-search search-complete)
 =>
-  (set-goal gl-gold-island-search no-search)
-  (enable-timer t-gold-island-search mine-interval)
+  (set-goal gl-gold-right-search no-search)
+  (enable-timer t-gold-right-search mine-interval)
 )
 
 (defrule
@@ -448,99 +398,53 @@
 )
 
 (defrule
-  (game-time > 1200)
-  (unit-type-count-total battering-ram-line < 30)
-  (can-train battering-ram-line)
-=>
-  (train battering-ram-line)
-)
-
-(defrule
-  (unit-type-count-total monk < 10)
+  (unit-type-count-total monk < 1)
   (can-train monk)
 =>
   (train monk)
+)
+
+(defrule
+  (game-time > 1200)
+  (unit-type-count-total trebuchet < 40)
+  (can-build trebuchet)
+=>
+  (build trebuchet)
 )
 
 (defrule
   (or
-    (unit-type-count-total archer-line < 20)
+    (unit-type-count-total longbowman-line < 20)
     (and
       (game-time > 1200)
-      (unit-type-count-total archer-line < 60)
+      (unit-type-count-total longbowman-line < 60)
     )
   )
-  (can-train archer-line)
+  (can-train longbowman-line)
 =>
-  (train archer-line)
+  (train longbowman-line)
+)
+
+; TODO should I used trebuchet-set or other trebuchet values here?
+(defrule
+  (unit-type-count-total trebuchet < 5)
+  (can-train trebuchet)
+=>
+  (train trebuchet)
 )
 
 (defrule
-  (unit-type-count-total battering-ram-line < 6)
-  (can-train battering-ram-line)
-=>
-  (train battering-ram-line)
-)
-
-(defrule
-  (game-time > 1200)
-  (unit-type-count-total monk < 25)
-  (can-train monk)
-=>
-  (train monk)
-)
-
-(defrule
-  (unit-type-count-total skirmisher-line < 10)
+  (unit-type-count-total skirmisher-line < 20)
   (can-train skirmisher-line)
 =>
   (train skirmisher-line)
 )
 
 (defrule
-  (unit-type-count-total spearman-line < 10)
-  (can-train spearman-line)
+  (unit-type-count-total scorpion-line < 4)
+  (can-train scorpion-line)
 =>
-  (train spearman-line)
-)
-
-(defrule
-  (unit-type-count-total camel-line < 6)
-  (can-train camel-line)
-=>
-  (train camel-line)
-)
-
-(defrule
-  (game-time > 1200)
-  (unit-type-count-total cannon-galleon-line < 2)
-  (can-train cannon-galleon-line)
-=>
-  (train cannon-galleon-line)
-)
-
-(defrule
-  (game-time > 1200)
-  (unit-type-count-total fire-ship-line < 6)
-  (can-train fire-ship-line)
-=>
-  (train fire-ship-line)
-)
-
-(defrule
-  (game-time > 1200)
-  (unit-type-count-total cannon-galleon-line < 8)
-  (can-train cannon-galleon-line)
-=>
-  (train cannon-galleon-line)
-)
-
-(defrule
-  (game-time > 1200)
-  (unit-type-count-total fire-ship-line < 20)
-  (can-train fire-ship-line)
-=>
-  (train fire-ship-line)
+  (train scorpion-line)
 )
 
 ; Attack management
@@ -552,7 +456,7 @@
 )
 
 (defrule
-  (game-time > 480)
+  (game-time > 1020)
 =>
   (set-strategic-number sn-percent-attack-soldiers 100)
   (attack-now)
@@ -589,9 +493,10 @@
   (up-get-point position-object gl-wonder-x)
   (up-set-target-point gl-wonder-x)
   (up-filter-distance c: -1 c: 30)
-  (up-find-local c: battering-ram-line c: 60)
-  (up-find-local c: archer-line c: 60)
-  (up-find-local c: cannon-galleon-line c: 60)
+  ; TODO test Treb values
+  (up-find-local c: trebuchet c: 60)
+  (up-find-local c: trebuchet-set c: 60)
+  (up-find-local c: longbowman-line c: 60)
   (up-get-search-state gl-local-total)
 )
 
@@ -607,5 +512,3 @@
 =>
   (set-goal gl-attack-wonder-search-state no-search)
 )
-
-; TODO Monk micro

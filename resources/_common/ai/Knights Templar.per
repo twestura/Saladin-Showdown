@@ -6,9 +6,6 @@
 (defconst list-active 0)
 (defconst status-resource 3)
 
-(defconst sn-special-attack-influence3 111)
-(defconst sn-special-attack-type3 108)
-
 ; For some reason siege-tower is not a pre-defined constant.
 (defconst siege-tower 1105)
 
@@ -81,10 +78,6 @@
   (set-strategic-number sn-gold-gatherer-percentage 30)
   (set-strategic-number sn-stone-gatherer-percentage 0)
 
-  ; Increases focus of attacks on the Wonder.
-	(set-strategic-number sn-special-attack-type3 1)
-  (set-strategic-number sn-special-attack-influence3 1)
-
   ; Makes attack groups larger.
   (set-strategic-number sn-maximum-attack-group-size 200)
   (set-strategic-number sn-minimum-attack-group-size 20)
@@ -126,6 +119,9 @@
   (set-goal gl-gold-y 78)
   (set-goal gl-gold-search no-search)
 
+  ; Initializes DUC guard goals.
+  (set-goal gl-attack-wonder-search-state no-search)
+
   (disable-self)
 )
 
@@ -134,6 +130,8 @@
 	(military-population < 4)
 	(unit-type-count-total villager < 1)
 	(not (can-train villager))
+  (building-type-count town-center < 1)
+  (building-type-count castle < 1)
 =>
   (chat-to-all "Forsooth, my Teutonic Knights woudlst not ungarrison from their Siege Towers to ask for directions!")
   (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
@@ -405,9 +403,13 @@
   (train spearman-line)
 )
 
-; TODO scale attack over time
-
 ; Attack management
+
+(defrule
+  (town-under-attack)
+=>
+  (attack-now)
+)
 
 (defrule
   (game-time > 840)

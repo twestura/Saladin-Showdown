@@ -2,8 +2,8 @@
 ; Makes mainly Longbowmen and Trebuchets. Also adds in some Skirmishers and
 ; Heavy Scorpions.
 
-(defconst sn-special-attack-influence3 111)
-(defconst sn-special-attack-type3 108)
+(defconst list-active 0)
+(defconst status-resource 3)
 
 ; Local search results
 (defconst gl-local-total 100)
@@ -26,6 +26,14 @@
 (defconst gl-wonder-x 210)
 (defconst gl-wonder-y 211)
 
+; Goals for holding the x and y coordinates of the secondary Gold.
+(defconst gl-gold-main-x 300)
+(defconst gl-gold-main-y 301)
+(defconst gl-gold-main-search 302)
+(defconst gl-gold-right-x 303)
+(defconst gl-gold-right-y 304)
+(defconst gl-gold-right-search 305)
+
 ; Flag to indicate whether to process search results for sending units near the
 ; Wonder to attack it.
 (defconst gl-attack-wonder-search-state 220)
@@ -39,6 +47,11 @@
 ; Timer to check for units near the wonder and make them attack.
 (defconst t-near-wonder 2)
 (defconst near-wonder-interval 45)
+
+; Timer checking the status of the mine.
+(defconst t-gold-main-search 3)
+(defconst t-gold-right-search 4)
+(defconst mine-interval 10)
 
 ; Initializes strategic numbers.
 (defrule
@@ -69,10 +82,6 @@
   (set-strategic-number sn-gold-gatherer-percentage 25)
   (set-strategic-number sn-stone-gatherer-percentage 20)
 
-  ; Increases focus of attacks on the Wonder.
-	(set-strategic-number sn-special-attack-type3 1)
-  (set-strategic-number sn-special-attack-influence3 1)
-
   ; Makes attack groups larger.
   (set-strategic-number sn-maximum-attack-group-size 200)
   (set-strategic-number sn-minimum-attack-group-size 20)
@@ -88,6 +97,9 @@
 
   ; Let's the AI attack walls.
 	(set-strategic-number sn-wall-targeting-mode 1)
+
+  ; Assigns at least 5 builders for Castles.
+  (up-assign-builders c: castle c: 5)
 
   ; Prevents cancelling buildings.
   (set-strategic-number sn-percent-building-cancellation 1)
@@ -109,7 +121,26 @@
   (set-goal gl-tc-4-y 136)
   (set-goal gl-num-placed-initial-tcs 0)
 
+  ; Initializes Gold coordinates.
+  (set-goal gl-gold-main-x 168)
+  (set-goal gl-gold-main-y 128)
+  (set-goal gl-gold-right-x 185)
+  (set-goal gl-gold-right-y 171)
+
+  ; Initializes DUC guard goals.
+  (set-goal gl-attack-wonder-search-state no-search)
+  (set-goal gl-gold-main-search no-search)
+  (set-goal gl-gold-right-search no-search)
+
   (disable-self)
+)
+
+; Initializes Longbowman micro.
+(defrule
+  (true)
+=>
+  (set-difficulty-parameter ability-to-dodge-missiles 30)
+  (set-difficulty-parameter ability-to-maintain-distance 5)
 )
 
 ; Resign condition
@@ -117,6 +148,8 @@
 	(military-population < 4)
 	(unit-type-count-total villager < 1)
 	(not (can-train villager))
+  (building-type-count town-center < 1)
+  (building-type-count castle < 1)
 =>
   (chat-to-all "Alas, mine Trebuchets were not heroic enough.")
   (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
@@ -273,10 +306,6 @@
   (build lumber-camp)
 )
 
-; TODO mining camps on main gold
-; TODO mining camp on stone
-; TODO mining camps on gold to the right
-
 ; Farms and Mills
 
 (defrule
@@ -296,6 +325,73 @@
   (build mill)
 )
 
+; Mining camp to saturate the "main" Gold.
+(defrule
+  (up-timer-status t-gold-main-search != timer-running)
+=>
+  (set-goal gl-gold-main-search search-complete)
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-main-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 10)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-gold-main-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-main-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-main-search search-complete)
+=>
+  (set-goal gl-gold-main-search no-search)
+  (enable-timer t-gold-main-search mine-interval)
+)
+
+; Mining camp near the "right" Gold
+(defrule
+  (game-time > 780)
+  (up-timer-status t-gold-right-search != timer-running)
+=>
+  (set-goal gl-gold-right-search search-complete)
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-right-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 10)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-gold-right-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-right-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-right-search search-complete)
+=>
+  (set-goal gl-gold-right-search no-search)
+  (enable-timer t-gold-right-search mine-interval)
+)
+
 (defrule
   (unit-type-count-total villager < 100)
   (can-train villager)
@@ -311,7 +407,21 @@
 )
 
 (defrule
-  (unit-type-count-total longbowman-line < 20)
+  (game-time > 1200)
+  (unit-type-count-total trebuchet < 40)
+  (can-build trebuchet)
+=>
+  (build trebuchet)
+)
+
+(defrule
+  (or
+    (unit-type-count-total longbowman-line < 20)
+    (and
+      (game-time > 1200)
+      (unit-type-count-total longbowman-line < 60)
+    )
+  )
   (can-train longbowman-line)
 =>
   (train longbowman-line)
@@ -339,9 +449,13 @@
   (train scorpion-line)
 )
 
-; TODO scale attack over time
-
 ; Attack management
+
+(defrule
+  (town-under-attack)
+=>
+  (attack-now)
+)
 
 (defrule
   (game-time > 1020)
@@ -400,5 +514,3 @@
 =>
   (set-goal gl-attack-wonder-search-state no-search)
 )
-
-; TODO longbowman micro
