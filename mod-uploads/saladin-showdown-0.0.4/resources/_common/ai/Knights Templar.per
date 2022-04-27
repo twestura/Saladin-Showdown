@@ -5,8 +5,6 @@
 
 (defconst list-active 0)
 (defconst status-resource 3)
-(defconst object-data-distance 44)
-(defconst search-order-asc 1)
 
 ; Monk with Relic object ID
 (defconst monk-with-relic 286)
@@ -50,47 +48,9 @@
 (defconst gl-gold-y 301)
 (defconst gl-gold-search 302)
 
-; Timers checking the status of the mine.
-(defconst t-gold-search 3)
+; Timers checking the status of the mines.
+(defconst t-gold-search 2)
 (defconst mine-interval 10)
-
-; Siege Tower duc.
-(defconst t-siege-tower 4)
-(defconst i-siege-tower 5)
-(defconst g-siege-tower 400)
-(defconst g-wall-x 401)
-(defconst g-wall-y 402)
-(defconst g-behind-x 403)
-(defconst g-behind-y 404)
-(defconst g-path-wall 405)
-(defconst g-path-behind 406)
-(defconst g-tower-ungarrisoned 407)
-(defconst g-tower-garrisoned 408)
-(defconst g-tower-x 409)
-(defconst g-tower-y 410)
-
-; Loop variables
-(defconst i 411)
-(defconst j 412)
-(defconst k 413)
-; The Teutonic Knight list starts at goal 414 and ends at goal 423.
-; Goal 424 is the first goal after the end of the list. The values of the list
-; are initialized implicitly to -1.
-(defconst ttk-list 414)
-(defconst ttk-list-end 424)
-
-; The distance of a Teutonic Knight attempting to path inside of the walls.
-(defconst g-ttk-path 424)
-(defconst g-siege-tower-id 425)
-(defconst g-ttk-id 426)
-
-; Coordinates of the Teutonic Knight for checking if it's on the same tile as an
-; off grid tower.
-(defconst g-ttk-x 427)
-(defconst g-ttk-y 428)
-; Flag for when a Teutonic Knight is in the city but the pathing check doesn't
-; work because of the off-grid placement of towers.
-(defconst g-is-off-grid 429)
 
 ; Initializes strategic numbers.
 (defrule
@@ -117,8 +77,8 @@
 
   ; Initializes land Villager gatherer percentages.
   (set-strategic-number sn-food-gatherer-percentage 35)
-  (set-strategic-number sn-wood-gatherer-percentage 45)
-  (set-strategic-number sn-gold-gatherer-percentage 20)
+  (set-strategic-number sn-wood-gatherer-percentage 35)
+  (set-strategic-number sn-gold-gatherer-percentage 30)
   (set-strategic-number sn-stone-gatherer-percentage 0)
 
   ; Makes attack groups larger.
@@ -165,12 +125,6 @@
   ; Initializes DUC guard goals.
   (set-goal gl-attack-wonder-search-state no-search)
 
-  ; Initializes Siege Tower DUC goals.
-  (set-goal g-siege-tower 0)
-  (set-goal g-wall-x 92)
-  (set-goal g-wall-y 117)
-  (set-goal g-behind-x 91)
-  (set-goal g-behind-y 118)
   (disable-self)
 )
 
@@ -182,7 +136,7 @@
   (building-type-count town-center < 1)
   (building-type-count castle < 1)
 =>
-  (chat-to-all "Forsooth, my Teutonic Knights woudlst not ungarrison their Siege Towers to ask for directions!")
+  (chat-to-all "Forsooth, my Teutonic Knights woudlst not ungarrison from their Siege Towers to ask for directions!")
   (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
   (resign)
   (disable-self)
@@ -412,8 +366,7 @@
 )
 
 (defrule
-  (game-time > 720) ; Don't reveal the Siege Tower too soon.
-  (unit-type-count-total siege-tower < 1)
+  (unit-type-count siege-tower < 3)
   (can-train siege-tower)
 =>
   (train siege-tower)
@@ -520,343 +473,4 @@
   (set-goal gl-attack-wonder-search-state no-search)
 )
 
-; Siege Tower ==================================================================
-(defrule
-  (game-time > 840)
-  (up-timer-status t-siege-tower != timer-running)
-  (goal g-siege-tower 0)
-=>
-  (set-goal g-siege-tower 1)
-  (set-goal g-tower-ungarrisoned 0)
-  (set-goal g-tower-garrisoned 0)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-=>
-  (up-full-reset-search)
-  (up-filter-garrison c: -1 c: 9)
-  (up-find-local c: siege-tower c: 1)
-  (up-get-search-state gl-local-total)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (up-compare-goal gl-local-total > 0)
-=>
-  (set-goal g-tower-ungarrisoned 1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 0)
-=>
-  (up-full-reset-search)
-  (up-filter-garrison c: 10 c: 10)
-  (up-find-local c: siege-tower c: 1)
-  (up-get-search-state gl-local-total)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 0)
-  (up-compare-goal gl-local-total > 0)
-=>
-  (set-goal g-tower-garrisoned 1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (or
-    (goal g-tower-ungarrisoned 1)
-    (goal g-tower-garrisoned 1)
-  )
-=>
-  (up-full-reset-search)
-  (up-reset-filters)
-  (up-find-local c: siege-tower c: 1)
-
-  (up-reset-filters)
-  (set-strategic-number sn-focus-player-number 1)
-  (up-set-target-point g-wall-x)
-  (up-filter-distance c: -1 c: 1)
-  (up-find-remote c: fortified-wall c: 1)
-  (up-get-search-state gl-local-total)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (or
-    (goal g-tower-ungarrisoned 1)
-    (goal g-tower-garrisoned 1)
-  )
-  (up-compare-goal gl-local-total > 0)
-  (up-compare-goal gl-remote-total > 0)
-=>
-  (up-set-target-object search-local c: 0)
-  (up-get-path-distance g-wall-x 1 g-path-wall)
-  (up-get-path-distance g-behind-x 1 g-path-behind)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-=>
-  (up-set-target-object search-local c: 0)
-  (up-get-point position-object g-tower-x)
-  (up-set-target-point g-tower-x)
-  (up-reset-search 1 1 0 0)
-  (up-reset-filters)
-  (up-find-local c: teutonic-knight-line c: 240)
-  (up-clean-search search-local object-data-distance search-order-asc)
-  (up-get-search-state gl-local-total)
-  (set-goal i 0)
-  (set-goal j ttk-list)
-  (set-goal k ttk-list)
-  (up-get-object-data object-data-id g-siege-tower-id)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal i g:!= gl-local-total)
-  (not (goal j ttk-list-end))
-=>
-  (up-set-target-object search-local g: i)
-  (up-get-path-distance g-behind-x 1 g-ttk-path)
-  (up-get-point position-object g-ttk-x)
-  (set-goal g-is-off-grid 0)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal i g:!= gl-local-total)
-  (not (goal j ttk-list-end))
-  (goal g-ttk-path 65535)
-  (goal g-is-off-grid 0)
-  (or
-    (or
-      (and (goal g-ttk-x 92) (goal g-ttk-y 120))
-      (and (goal g-ttk-x 92) (goal g-ttk-y 121))
-    )
-    (or
-      (and (goal g-ttk-x 93) (goal g-ttk-y 120))
-      (and (goal g-ttk-x 93) (goal g-ttk-y 121))
-    )
-  )
-=>
-  (set-goal g-is-off-grid 1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal i g:!= gl-local-total)
-  (not (goal j ttk-list-end))
-  (goal g-ttk-path 65535)
-  (goal g-is-off-grid 0)
-  (or
-    (or
-      (and (goal g-ttk-x 73) (goal g-ttk-y 109))
-      (and (goal g-ttk-x 73) (goal g-ttk-y 110))
-    )
-    (or
-      (and (goal g-ttk-x 74) (goal g-ttk-y 109))
-      (and (goal g-ttk-x 74) (goal g-ttk-y 110))
-    )
-  )
-=>
-  (set-goal g-is-off-grid 1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal i g:!= gl-local-total)
-  (not (goal j ttk-list-end))
-  (goal g-ttk-path 65535)
-  (goal g-is-off-grid 0)
-  (or
-    (or
-      (and (goal g-ttk-x 59) (goal g-ttk-y 120))
-      (and (goal g-ttk-x 59) (goal g-ttk-y 121))
-    )
-    (or
-      (and (goal g-ttk-x 60) (goal g-ttk-y 120))
-      (and (goal g-ttk-x 60) (goal g-ttk-y 121))
-    )
-  )
-=>
-  (set-goal g-is-off-grid 1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal i g:!= gl-local-total)
-  (not (goal j ttk-list-end))
-  (goal g-ttk-path 65535)
-  (goal g-is-off-grid 0)
-  (or
-    (or
-      (and (goal g-ttk-x 62) (goal g-ttk-y 147))
-      (and (goal g-ttk-x 62) (goal g-ttk-y 148))
-    )
-    (or
-      (and (goal g-ttk-x 63) (goal g-ttk-y 147))
-      (and (goal g-ttk-x 63) (goal g-ttk-y 148))
-    )
-  )
-=>
-  (set-goal g-is-off-grid 1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal i g:!= gl-local-total)
-  (not (goal j ttk-list-end))
-  (goal g-ttk-path 65535)
-  (goal g-is-off-grid 0)
-  (or
-    (or
-      (and (goal g-ttk-x 100) (goal g-ttk-y 129))
-      (and (goal g-ttk-x 100) (goal g-ttk-y 130))
-    )
-    (or
-      (and (goal g-ttk-x 101) (goal g-ttk-y 129))
-      (and (goal g-ttk-x 101) (goal g-ttk-y 130))
-    )
-  )
-=>
-  (set-goal g-is-off-grid 1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal i g:!= gl-local-total)
-  (not (goal j ttk-list-end))
-  (goal g-ttk-path 65535)
-  (goal g-is-off-grid 0)
-  (or
-    (or
-      (and (goal g-ttk-x 93) (goal g-ttk-y 136))
-      (and (goal g-ttk-x 93) (goal g-ttk-y 137))
-    )
-    (or
-      (and (goal g-ttk-x 94) (goal g-ttk-y 136))
-      (and (goal g-ttk-x 94) (goal g-ttk-y 137))
-    )
-  )
-=>
-  (set-goal g-is-off-grid 1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal i g:!= gl-local-total)
-  (not (goal j ttk-list-end))
-  (goal g-ttk-path 65535)
-  (goal g-is-off-grid 0)
-=>
-  (up-get-object-data object-data-id g-ttk-id)
-  (up-set-indirect-goal g: j g: g-ttk-id)
-  (up-modify-goal j c:+ 1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal i g:!= gl-local-total)
-  (not (goal j ttk-list-end))
-=>
-  (up-modify-goal i c:+ 1)
-  (up-jump-rule -9)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-=>
-  (up-reset-search 1 1 0 0)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-  (up-compare-goal j g:!= k)
-=>
-  (up-get-indirect-goal g: k g-ttk-id)
-  (up-add-object-by-id search-local g: g-ttk-id)
-  (up-modify-goal k c:+ 1)
-  (up-jump-rule -1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-ungarrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-=>
-  (up-set-target-by-id g: g-siege-tower-id)
-  (up-target-objects 1 action-default -1 -1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-  (goal g-tower-garrisoned 1)
-  (up-compare-goal gl-remote-total > 0)
-  (not (goal g-wall-x 65535))
-  (goal g-path-behind 65535)
-=>
-  (up-set-target-object search-remote c: 0)
-  (up-target-objects 1 action-default -1 -1)
-)
-
-(defrule
-  (goal g-siege-tower 1)
-=>
-  (set-goal g-siege-tower 0)
-  (enable-timer t-siege-tower i-siege-tower)
-)
-; Siege Tower ==================================================================
+; TODO siege tower

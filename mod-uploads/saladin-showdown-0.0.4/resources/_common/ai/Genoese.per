@@ -76,33 +76,12 @@
 (defconst gl-coast-x 307)
 (defconst gl-coast-y 308)
 
-; Coordinates at which to build towers on the Gold island.
-(defconst gl-tower0-x 309)
-(defconst gl-tower0-y 310)
-(defconst gl-tower1-x 311)
-(defconst gl-tower1-y 312)
-
 ; Gather point for the Docks to create more space for fishing ships.
-(defconst gl-dock-gather-x 347)
-(defconst gl-dock-gather-y 348)
+(defconst gl-gather-x 347)
+(defconst gl-gather-y 348)
 (defconst gl-gather-dock-search 349)
 (defconst t-dock 4)
 (defconst dock-gather-interval 30)
-
-; Cannon Galleon micro
-(defconst t-cannon-galleon 6)
-(defconst i-cannon-galleon 5)
-(defconst gl-cannon-galleon 450)
-(defconst gl-gather-x 451)
-(defconst gl-gather-y 452)
-(defconst gl-sea-x 453)
-(defconst gl-sea-y 454)
-(defconst gl-top-x 455)
-(defconst gl-top-y 456)
-(defconst gl-mid-x 457)
-(defconst gl-mid-y 458)
-(defconst gl-bottom-x 459)
-(defconst gl-bottom-y 460)
 
 ; Initializes strategic numbers.
 (defrule
@@ -157,9 +136,6 @@
 
   ; Assigns no Villagers for Fish Traps. Use -1 instead of 0.
   (up-assign-builders c: fish-trap c: -1)
-
-  ; Assigns 3 Villagers for building Towers.
-  (up-assign-builders c: fish-trap c: 3)
   (disable-self)
 )
 
@@ -183,11 +159,6 @@
   (set-goal gl-transport-x 29)
   (set-goal gl-transport-y 72)
 
-  (set-goal gl-tower0-x 27)
-  (set-goal gl-tower0-y 74)
-  (set-goal gl-tower1-x 34)
-  (set-goal gl-tower1-y 58)
-
   (set-goal gl-coast-x 160)
   (set-goal gl-coast-y 20)
 
@@ -201,27 +172,10 @@
   (set-goal gl-is-gold 1)
 
   ; Initializes the dock gather point.
-  (set-goal gl-dock-gather-x 140)
-  (set-goal gl-dock-gather-y 20)
+  (set-goal gl-gather-x 140)
+  (set-goal gl-gather-y 20)
 
   (disable-self)
-)
-
-; Initializes more Goals.
-(defrule
-  (true)
-=>
-  (set-goal gl-cannon-galleon 0)
-  (set-goal gl-gather-x 61)
-  (set-goal gl-gather-y 99)
-  (set-goal gl-sea-x 62)
-  (set-goal gl-sea-y 94)
-  (set-goal gl-top-x 74)
-  (set-goal gl-top-y 99)
-  (set-goal gl-mid-x 66)
-  (set-goal gl-mid-y 103)
-  (set-goal gl-bottom-x 57)
-  (set-goal gl-bottom-y 116)
 )
 
 ; Initializes unit micro.
@@ -708,9 +662,9 @@
 
 ; All-in attack phase.
 
-; Sends all land soldiers to join the attack after 22 minutes.
+; Sends all land soldiers to join the attack after 23 minutes.
 (defrule
-  (game-time > 1320)
+  (game-time > 1380)
 =>
   (set-strategic-number sn-percent-attack-soldiers 100)
   (attack-now)
@@ -744,7 +698,7 @@
 ; Transports Villagers to the Gold island to mine Wood and Gold.
 ; Deletes the Villagers on the island if there is no more Gold there.
 (defrule
-  (game-time > 720) ; TODO re-enable
+  (game-time > 720)
   (unit-type-count-total villager > 30)
   (up-timer-status t-island-vils != timer-running)
   (goal gl-island-search no-search)
@@ -781,36 +735,6 @@
 =>
   (up-set-target-object search-local c: 0)
   (up-target-objects 1 action-delete -1 -1)
-)
-
-; There are Villagers and Gold, so build Stone and build a couple of defensive
-; towers to protect the island (and to trush any player Villagers there).
-(defrule
-  (goal gl-island-search search-complete)
-  (goal gl-is-gold 1)
-  (up-compare-goal gl-num-island-vils > 0)
-  (stone-amount < 125)
-  (can-buy-commodity stone)
-=>
-  (buy-commodity stone)
-)
-
-(defrule
-  (goal gl-island-search search-complete)
-  (goal gl-is-gold 1)
-  (up-compare-goal gl-num-island-vils > 0)
-  (up-can-build-line 0 gl-tower0-x c: watch-tower)
-=>
-  (up-build-line gl-tower0-x gl-tower0-x c: watch-tower)
-)
-
-(defrule
-  (goal gl-island-search search-complete)
-  (goal gl-is-gold 1)
-  (up-compare-goal gl-num-island-vils > 0)
-  (up-can-build-line 0 gl-tower1-x c: watch-tower)
-=>
-  (up-build-line gl-tower1-x gl-tower1-x c: watch-tower)
 )
 
 ; There are Villagers and Gold, so build a Mining Camp if there isn't one
@@ -939,7 +863,7 @@
   (goal gl-gather-dock-search search-complete)
   (up-compare-goal gl-local-total > 0)
 =>
-  (up-target-point gl-dock-gather-x action-gather -1 -1)
+  (up-target-point gl-gather-x action-gather -1 -1)
 )
 
 (defrule
@@ -947,79 +871,4 @@
 =>
   (set-goal gl-gather-dock-search no-search)
   (enable-timer t-dock dock-gather-interval)
-)
-
-; Micros Cannon Galleons near the city to attack towers, Castles, Docks, and
-; the Wonder. In the final minute, ignore everything and just go for the Wonder.
-(defrule
-  (up-timer-status t-cannon-galleon != timer-running)
-  (goal gl-cannon-galleon 0)
-=>
-  (set-goal gl-cannon-galleon 1)
-)
-
-(defrule
-  (game-time > 660)
-  (game-time < 1740)
-  (goal gl-cannon-galleon 1)
-=>
-  (up-full-reset-search)
-  (up-set-target-point gl-gather-x)
-  (up-filter-distance c: -1 c: 35)
-  (up-find-local c: cannon-galleon-line c: 240)
-
-  (up-reset-filters)
-  (set-strategic-number sn-focus-player-number 1)
-  (up-find-remote c: wonder c: 1)
-
-  (up-set-target-point gl-top-x)
-  (up-filter-distance c: -1 c: 15)
-  (up-find-remote c: tower-class c: 4)
-  (up-find-remote c: castle c: 4)
-  (up-find-remote c: dock c: 4)
-
-  (up-reset-filters)
-  (up-set-target-point gl-mid-x)
-  (up-filter-distance c: -1 c: 15)
-  (up-find-remote c: tower-class c: 4)
-  (up-find-remote c: castle c: 4)
-  (up-find-remote c: dock c: 4)
-
-  (up-reset-filters)
-  (up-set-target-point gl-bottom-x)
-  (up-filter-distance c: -1 c: 20)
-  (up-find-remote c: tower-class c: 4)
-  (up-find-remote c: castle c: 4)
-  (up-find-remote c: dock c: 4)
-
-  (up-set-target-point gl-sea-x)
-  (up-clean-search search-remote object-data-distance search-order-asc)
-  (up-get-search-state gl-local-total)
-)
-
-(defrule
-  (game-time >= 1740)
-  (goal gl-cannon-galleon 1)
-=>
-  (up-full-reset-search)
-  (up-find-local c: cannon-galleon-line c: 20)
-  (set-strategic-number sn-focus-player-number 1)
-  (up-find-remote c: wonder c: 1)
-  (up-get-search-state gl-local-total)
-)
-
-(defrule
-  (goal gl-cannon-galleon 1)
-  (up-compare-goal gl-local-total > 0)
-  (up-compare-goal gl-remote-total > 0)
-=>
-  (up-set-target-object search-remote c: 0)
-  (up-target-objects 1 action-default -1 -1)
-)
-
-(defrule
-  (goal gl-cannon-galleon 1)
-=>
-  (set-goal gl-cannon-galleon 0)
-  (enable-timer t-cannon-galleon i-cannon-galleon)
 )

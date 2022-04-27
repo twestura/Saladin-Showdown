@@ -3,13 +3,11 @@
 ; Adds in Fast Fire Ships and a few Elite Cannon Galleons towards the end of
 ; the game.
 
-; TODO Onager refuses to attack ground trees, can't cut felled trees.
+; TODO tower land near the Gold and Docks
 
 (defconst list-active 0)
 (defconst status-ready 2)
 (defconst status-resource 3)
-(defconst search-order-asc 1)
-(defconst object-data-distance 44)
 
 ; Monk with Relic object ID
 (defconst monk-with-relic 286)
@@ -43,24 +41,6 @@
 ; Gate guarding the Onager DUC code.
 (defconst gl-onager 252)
 
-; Coordinates at which to build towers near the Gold Mine.
-(defconst gl-tower0-x 253)
-(defconst gl-tower0-y 254)
-(defconst gl-tower1-x 255)
-(defconst gl-tower1-y 256)
-
-; Point for targeting the attack ground for cutting trees.
-(defconst gl-attack-ground-x 257)
-(defconst gl-attack-ground-y 258)
-
-; Acre Docks search point.
-(defconst gl-harbor-x 270)
-(defconst gl-harbor-y 271)
-; Acre Docks attack angle.
-(defconst gl-sea-x 272)
-(defconst gl-sea-y 273)
-(defconst gl-cannon-galleon 274)
-
 ; Goals for holding the x and y coordinates of the secondary Gold.
 (defconst gl-gold-main-x 300)
 (defconst gl-gold-main-y 301)
@@ -82,13 +62,8 @@
 (defconst t-gold-island-search 4)
 (defconst mine-interval 10)
 
-; Timer for controlling Onager cutting.
 (defconst t-onager 5)
 (defconst i-onager 5)
-
-; Timer for managing Cannon Galleon micro.
-(defconst t-cannon-galleon 6)
-(defconst i-cannon-galleon 5)
 
 ; Positions for where to build the forward Docks.
 (defconst gl-dock1-x 350)
@@ -124,8 +99,8 @@
   (set-strategic-number sn-percent-attack-soldiers 0)
 
   ; Initializes land Villager gatherer percentages.
-  (set-strategic-number sn-food-gatherer-percentage 30)
-  (set-strategic-number sn-wood-gatherer-percentage 45)
+  (set-strategic-number sn-food-gatherer-percentage 35)
+  (set-strategic-number sn-wood-gatherer-percentage 40)
   (set-strategic-number sn-gold-gatherer-percentage 25)
   (set-strategic-number sn-stone-gatherer-percentage 0)
 
@@ -147,9 +122,6 @@
 
   ; Prevents cancelling buildings when they are significantly completed.
   (set-strategic-number sn-percent-building-cancellation 1)
-
-  ; Assigns 5 Villagers to build a Tower.
-  (up-assign-builders c: watch-tower c: 5)
   (disable-self)
 )
 
@@ -175,12 +147,6 @@
   (set-goal gl-gold-island-x 104)
   (set-goal gl-gold-island-y 177)
 
-  ; Initializes Tower coordinates.
-  (set-goal gl-tower0-x 102)
-  (set-goal gl-tower0-y 180)
-  (set-goal gl-tower1-x 100)
-  (set-goal gl-tower1-y 170)
-
   ; Initializes DUC guard goals.
   (set-goal gl-attack-wonder-search-state no-search)
   (set-goal gl-gold-main-search no-search)
@@ -196,20 +162,6 @@
   (set-goal gl-dock4-x 96)
   (set-goal gl-dock4-y 163)
 
-  (disable-self)
-)
-
-; Initializes more Goals.
-(defrule
-  (true)
-=>
-  ; Acre Docks search point.
-  (set-goal gl-harbor-x 70)
-  (set-goal gl-harbor-y 145)
-  ; Acre Docks attack angle.
-  (set-goal gl-sea-x 77)
-  (set-goal gl-sea-y 169)
-  (set-goal gl-cannon-galleon 0)
   (disable-self)
 )
 
@@ -439,13 +391,7 @@
 ; Farms and Mills
 
 (defrule
-  (or
-    (building-type-count-total farm < 10)
-    (and
-      (game-time > 360)
-      (building-type-count-total farm < 80)
-    )
-  )
+  (building-type-count-total farm < 80)
   (up-pending-objects c: farm < 5)
   (idle-farm-count < 5)
   (can-build farm)
@@ -526,30 +472,6 @@
 =>
   (set-goal gl-gold-island-search no-search)
   (enable-timer t-gold-island-search mine-interval)
-)
-
-(defrule
-  (game-time > 300)
-  (stone-amount < 125)
-  (can-buy-commodity stone)
-=>
-  (buy-commodity stone)
-)
-
-(defrule
-  (game-time > 300)
-  (not (town-under-attack))
-  (up-can-build-line 0 gl-tower0-x c: watch-tower)
-=>
-  (up-build-line gl-tower0-x gl-tower0-x c: watch-tower)
-)
-
-(defrule
-  (game-time > 300)
-  (not (town-under-attack))
-  (up-can-build-line 0 gl-tower1-x c: watch-tower)
-=>
-  (up-build-line gl-tower1-x gl-tower1-x c: watch-tower)
 )
 
 (defrule
@@ -737,7 +659,9 @@
   (set-goal gl-attack-wonder-search-state no-search)
 )
 
+; um what? This stops when the french attack?
 (defrule
+  ; (game-time > 540)
   (up-timer-status t-onager != timer-running)
   (goal gl-onager 0)
 =>
@@ -752,6 +676,8 @@
   (up-set-target-point gl-tree-x)
   (up-filter-distance c: -1 c: 7)
   (up-filter-status c: status-ready c: list-active)
+  (up-find-resource c: wood c: 20)
+  (up-filter-status c: status-resource c: list-active)
   (up-find-resource c: wood c: 20)
   (up-get-search-state gl-local-total)
 )
@@ -771,56 +697,3 @@
   (enable-timer t-onager i-onager)
 )
 
-; Tasks Cannon Galleons to attack towers, Castles, Docks, and the Wonder.
-; And in the final minute, ignore everything and just go for the Wonder.
-(defrule
-  (up-timer-status t-cannon-galleon != timer-running)
-  (goal gl-cannon-galleon 0)
-=>
-  (set-goal gl-cannon-galleon 1)
-)
-
-(defrule
-  (game-time < 1740)
-  (goal gl-cannon-galleon 1)
-=>
-  (up-full-reset-search)
-  (up-find-local c: cannon-galleon-line c: 20)
-  (up-set-target-point gl-harbor-x)
-  (up-filter-distance c: -1 c: 30)
-  (set-strategic-number sn-focus-player-number 1)
-  (up-find-remote c: tower-class c: 10)
-  (up-find-remote c: castle c: 5)
-  (up-find-remote c: dock c: 10)
-  (up-find-remote c: wonder c: 1)
-  (up-set-target-point gl-sea-x)
-  (up-clean-search search-remote object-data-distance search-order-asc)
-  (up-get-search-state gl-local-total)
-)
-
-(defrule
-  (game-time >= 1740)
-  (goal gl-cannon-galleon 1)
-=>
-  (up-full-reset-search)
-  (up-find-local c: cannon-galleon-line c: 20)
-  (set-strategic-number sn-focus-player-number 1)
-  (up-find-remote c: wonder c: 1)
-  (up-get-search-state gl-local-total)
-)
-
-(defrule
-  (goal gl-cannon-galleon 1)
-  (up-compare-goal gl-local-total > 0)
-  (up-compare-goal gl-remote-total > 0)
-=>
-  (up-set-target-object search-remote c: 0)
-  (up-target-objects 1 action-default -1 -1)
-)
-
-(defrule
-  (goal gl-cannon-galleon 1)
-=>
-  (set-goal gl-cannon-galleon 0)
-  (enable-timer t-cannon-galleon i-cannon-galleon)
-)

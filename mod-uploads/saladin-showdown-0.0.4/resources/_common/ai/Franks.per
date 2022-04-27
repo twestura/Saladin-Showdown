@@ -381,7 +381,7 @@
   (set-goal gl-is-castle2-present present)
 )
 
-; Searches for a Castle in the third spot.
+; Searches for a Castle in the second spot.
 (defrule
   (goal gl-castle-search search-complete)
 =>
@@ -407,7 +407,6 @@
   (goal gl-is-castle1-present present)
   (goal gl-is-castle2-present present)
   (goal gl-is-castle3-present present)
-  (unit-type-count-total villager > 30)
   (not (up-pending-placement c: castle))
   (up-pending-objects c: castle == 0)
   (can-build castle)
@@ -436,7 +435,6 @@
   (goal gl-is-castle2-present present)
   (goal gl-is-castle3-present absent)
   (not (up-pending-placement c: castle))
-  (unit-type-count-total villager > 30)
   (up-pending-objects c: castle == 0)
   (up-can-build-line 0 gl-castle-3-x c: castle)
 =>
@@ -452,7 +450,6 @@
     (goal gl-is-castle1-present present)
     (goal gl-is-castle3-present present)
   )
-  (unit-type-count-total villager > 30)
   (not (up-pending-placement c: castle))
   (up-pending-objects c: castle == 0)
   (up-can-build-line 0 gl-castle-2-x c: castle)
@@ -464,8 +461,6 @@
 (defrule
   (goal gl-castle-search search-complete)
   (goal gl-is-castle1-present absent)
-  (not (town-under-attack))
-  (unit-type-count-total villager > 30)
   (not (up-pending-placement c: castle))
   (up-pending-objects c: castle == 0)
   (up-can-build-line 0 gl-castle-1a-x c: castle)
