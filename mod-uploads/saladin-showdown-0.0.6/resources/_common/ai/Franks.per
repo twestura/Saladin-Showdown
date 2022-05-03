@@ -2,7 +2,6 @@
 ; Concentrates on building forward Castles and supporting them with Paladins,
 ; Hand Cannoneers, Throwing Axemen, and a few Halbs. Adds in Bombard Cannons
 ; as siege.
-; Builds only 1 forward Castle on Standard and only 2 on Moderate.
 
 (defconst list-active 0)
 (defconst status-resource 3)
@@ -154,12 +153,8 @@
   (set-strategic-number sn-percent-building-cancellation 1)
 
   ; Influences units to attack the Wonder.
-  (set-strategic-number sn-special-attack-influence2 10000)
+  (set-strategic-number sn-special-attack-influence2 1)
   (set-strategic-number sn-special-attack-type2 wonder)
-  (set-strategic-number sn-enable-offensive-priority 1)
-  (up-set-offense-priority c: wonder c: 11)
-  (up-set-offense-priority c: castle c: 10)
-  (up-set-offense-priority c: tower-class c: 9)
   (disable-self)
 )
 
@@ -469,7 +464,6 @@
   (not (up-pending-placement c: castle))
   (up-pending-objects c: castle == 0)
   (can-build castle)
-  (difficulty <= hard)
 =>
   (build-forward castle)
 )
@@ -565,7 +559,6 @@
   (unit-type-count-total villager > 30)
   (up-pending-objects c: castle == 0)
   (up-can-build-line 0 gl-castle-3-x c: castle)
-  (difficulty <= hard)
 =>
   (up-build-line gl-castle-3-x gl-castle-3-x c: castle)
 )
@@ -582,7 +575,6 @@
   (not (up-pending-placement c: castle))
   (up-pending-objects c: castle == 0)
   (up-can-build-line 0 gl-castle-2-x c: castle)
-  (difficulty <= moderate)
 =>
   (up-build-line gl-castle-2-x gl-castle-2-x c: castle)
 )
@@ -669,7 +661,6 @@
   (game-time > 1200)
   (building-type-count-total stable < 10)
   (can-build stable)
-  (difficulty <= moderate)
 =>
   (build-forward stable)
 )
@@ -678,7 +669,6 @@
   (game-time > 1200)
   (building-type-count-total siege-workshop < 7)
   (can-build siege-workshop)
-  (difficulty <= hard)
 =>
   (build-forward siege-workshop)
 )
@@ -848,7 +838,7 @@
 )
 
 (defrule
-  (unit-type-count-total bombard-cannon < 1)
+  (unit-type-count-total bombard-cannon < 3)
   (can-train bombard-cannon)
 =>
   (train bombard-cannon)
@@ -857,22 +847,13 @@
 (defrule
   (unit-type-count-total battering-ram-line < 2)
   (can-train battering-ram-line)
-  (difficulty <= moderate)
 =>
   (train battering-ram-line)
 )
 
 (defrule
-  (unit-type-count-total bombard-cannon < 3)
-  (can-train bombard-cannon)
-=>
-  (train bombard-cannon)
-)
-
-(defrule
   (game-time > 1200)
   (unit-type-count-total bombard-cannon < 25)
-  (difficulty <= hard)
   (can-train bombard-cannon)
 =>
   (train bombard-cannon)
@@ -888,7 +869,6 @@
 (defrule
   (unit-type-count-total bombard-cannon < 6)
   (can-train bombard-cannon)
-  (difficulty <= moderate)
 =>
   (train bombard-cannon)
 )
@@ -896,7 +876,6 @@
 (defrule
   (unit-type-count-total throwing-axeman-line < 40)
   (can-train throwing-axeman-line)
-  (difficulty <= moderate)
 =>
   (train throwing-axeman-line)
 )
@@ -911,7 +890,6 @@
 (defrule
   (unit-type-count-total spearman-line < 40)
   (can-train spearman-line)
-  (difficulty <= hard)
 =>
   (train spearman-line)
 )
@@ -996,7 +974,7 @@
 =>
   (up-full-reset-search)
   (up-set-target-point g-gather-ram-x)
-  (up-filter-distance c: -1 c: 25)
+  (up-filter-distance c: -1 c: 20)
   (up-find-local c: battering-ram-line c: 240)
 
   (up-reset-filters)

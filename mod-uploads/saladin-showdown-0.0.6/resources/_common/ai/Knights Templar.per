@@ -147,12 +147,8 @@
   (set-strategic-number sn-percent-building-cancellation 1)
 
   ; Influences units to attack the Wonder.
-  (set-strategic-number sn-special-attack-influence2 10000)
+  (set-strategic-number sn-special-attack-influence2 1)
   (set-strategic-number sn-special-attack-type2 wonder)
-  (set-strategic-number sn-enable-offensive-priority 1)
-  (up-set-offense-priority c: wonder c: 11)
-  (up-set-offense-priority c: castle c: 10)
-  (up-set-offense-priority c: tower-class c: 9)
   (disable-self)
 )
 
@@ -458,13 +454,10 @@
 
 (defrule
   (or
-    (unit-type-count-total mangonel-line < 4)
+    (unit-type-count-total mangonel-line < 6)
     (and
-      (and
-        (game-time > 1020)
-        (unit-type-count-total mangonel-line < 10)
-      )
-      (difficulty <= hard)
+      (game-time > 1020)
+      (unit-type-count-total mangonel-line < 10)
     )
   )
   (can-train mangonel-line)
@@ -497,7 +490,6 @@
   (game-time > 1020)
   (unit-type-count-total militiaman-line < 10)
   (can-train militiaman-line)
-  (difficulty <= hard)
 =>
   (train militiaman-line)
 )

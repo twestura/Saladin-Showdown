@@ -160,7 +160,7 @@
   (up-assign-builders c: fish-trap c: -1)
 
   ; Influences units to attack the Wonder.
-  (set-strategic-number sn-special-attack-influence2 10000)
+  (set-strategic-number sn-special-attack-influence2 1)
   (set-strategic-number sn-special-attack-type2 wonder)
 
   (disable-self)
@@ -605,10 +605,10 @@
 (defrule
   (difficulty <= moderate)
   (or
-    (unit-type-count-total galley-line < 15)
+    (unit-type-count-total galley-line < 25)
     (and
-      (game-time > 1500)
-      (unit-type-count-total galley-line < 25)
+      (game-time > 1200)
+      (unit-type-count-total galley-line < 40)
     )
   )
   (can-train galley-line)
@@ -625,12 +625,12 @@
 )
 
 (defrule
-  (difficulty <= hard)
+  (difficulty <= moderate)
   (or
-    (unit-type-count-total fire-ship-line < 8)
+    (unit-type-count-total fire-ship-line < 10)
     (and
-      (game-time > 1500)
-      (unit-type-count-total fire-ship-line < 15)
+      (game-time > 1200)
+      (unit-type-count-total fire-ship-line < 20)
     )
   )
   (can-train fire-ship-line)

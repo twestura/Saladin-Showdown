@@ -109,14 +109,8 @@
   (set-strategic-number sn-percent-building-cancellation 1)
 
   ; Influences units to attack the Wonder.
-  (set-strategic-number sn-special-attack-influence2 10000)
+  (set-strategic-number sn-special-attack-influence2 1)
   (set-strategic-number sn-special-attack-type2 wonder)
-
-  (set-strategic-number sn-enable-offensive-priority 1)
-  (up-set-offense-priority c: wonder c: 11)
-  (up-set-offense-priority c: castle c: 10)
-  (up-set-offense-priority c: tower-class c: 9)
-
   (disable-self)
 )
 
@@ -271,13 +265,7 @@
 )
 
 (defrule
-  (or
-    (building-type-count-total castle < 3)
-    (and
-      (difficulty <= moderate)
-      (building-type-count-total castle < 7)
-    )
-  )
+  (building-type-count-total castle < 7)
   (can-build castle)
 =>
   (build castle)
@@ -300,7 +288,6 @@
 (defrule
   (unit-type-count-total archery-range < 2)
   (can-build archery-range)
-  (difficulty <= hard)
 =>
   (build archery-range)
 )
@@ -441,7 +428,6 @@
   (game-time > 1200)
   (unit-type-count-total trebuchet-set < 20)
   (can-build trebuchet)
-  (difficulty <= moderate)
 =>
   (build trebuchet)
 )
@@ -475,7 +461,6 @@
     )
   )
   (can-train skirmisher-line)
-  (difficulty <= hard)
 =>
   (train skirmisher-line)
 )
@@ -501,7 +486,7 @@
   (set-strategic-number sn-percent-attack-soldiers 100)
   (attack-now)
   (enable-timer t-attack attack-interval)
-  ; (enable-timer t-near-wonder near-wonder-interval)
+  (enable-timer t-near-wonder near-wonder-interval)
   (disable-self)
 )
 

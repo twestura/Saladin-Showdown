@@ -160,7 +160,7 @@
   (up-assign-builders c: fish-trap c: -1)
 
   ; Influences units to attack the Wonder.
-  (set-strategic-number sn-special-attack-influence2 10000)
+  (set-strategic-number sn-special-attack-influence2 1)
   (set-strategic-number sn-special-attack-type2 wonder)
 
   (disable-self)
@@ -469,7 +469,6 @@
 (defrule
   (unit-type-count-total transport-ship < 1)
   (can-train transport-ship)
-  (difficulty <= moderate)
 =>
   (train transport-ship)
 )
@@ -505,7 +504,6 @@
 (defrule
   (unit-type-count-total cannon-galleon-line < 3)
   (can-train cannon-galleon-line)
-  (difficulty <= moderate)
 =>
   (train cannon-galleon-line)
 )
@@ -589,7 +587,6 @@
   (game-time > 1500)
   (unit-type-count-total cannon-galleon-line < 30)
   (can-train cannon-galleon-line)
-  (difficulty <= hard)
 =>
   (train cannon-galleon-line)
 )
@@ -597,18 +594,23 @@
 (defrule
   (unit-type-count-total fire-ship-line < 5)
   (can-train fire-ship-line)
-  (difficulty <= moderate)
 =>
   (train fire-ship-line)
 )
 
 (defrule
-  (difficulty <= moderate)
+  (unit-type-count-total cannon-galleon-line < 3)
+  (can-train cannon-galleon-line)
+=>
+  (train cannon-galleon-line)
+)
+
+(defrule
   (or
-    (unit-type-count-total galley-line < 15)
+    (unit-type-count-total galley-line < 25)
     (and
-      (game-time > 1500)
-      (unit-type-count-total galley-line < 25)
+      (game-time > 1200)
+      (unit-type-count-total galley-line < 40)
     )
   )
   (can-train galley-line)
@@ -619,18 +621,16 @@
 (defrule
   (unit-type-count-total cannon-galleon-line < 5)
   (can-train cannon-galleon-line)
-  (difficulty <= moderate)
 =>
   (train cannon-galleon-line)
 )
 
 (defrule
-  (difficulty <= hard)
   (or
-    (unit-type-count-total fire-ship-line < 8)
+    (unit-type-count-total fire-ship-line < 10)
     (and
-      (game-time > 1500)
-      (unit-type-count-total fire-ship-line < 15)
+      (game-time > 1200)
+      (unit-type-count-total fire-ship-line < 20)
     )
   )
   (can-train fire-ship-line)
@@ -726,7 +726,6 @@
 ; Sends all land soldiers to join the attack after 22 minutes.
 (defrule
   (game-time > 1320)
-  (difficulty <= hard)
 =>
   (set-strategic-number sn-percent-attack-soldiers 100)
   (attack-now)
@@ -761,7 +760,6 @@
   (game-time > 720)
   (unit-type-count-total villager > 30)
   (up-timer-status t-island-vils != timer-running)
-  (difficulty <= moderate)
   (goal gl-island-search no-search)
 =>
   (set-goal gl-island-search search-complete)
