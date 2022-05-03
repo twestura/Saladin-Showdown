@@ -34,7 +34,6 @@
 
 ; Flag to indicate whether to process search results for sending units near the
 ; Wonder to attack it.
-(defconst gl-attack-wonder-search-state 220)
 (defconst no-search 0)
 (defconst search-complete 1)
 
@@ -43,8 +42,9 @@
 (defconst attack-interval 60)
 
 ; Timer to check for units near the wonder and make them attack.
-(defconst t-near-wonder 2)
-(defconst near-wonder-interval 45)
+(defconst t-duc-wonder 2)
+(defconst i-duc-wonder 5)
+(defconst g-duc-wonder 220)
 
 ; Goals for holding the x and y coordinates of the secondary Gold and Stone.
 (defconst gl-gold-x 300)
@@ -160,6 +160,8 @@
 (defrule
   (true)
 =>
+  (set-goal g-duc-wonder 0)
+
   ; Initializes the TC placement locations.
   (set-goal gl-tc-1-x 149)
   (set-goal gl-tc-1-y 66)
@@ -170,9 +172,6 @@
   (set-goal gl-gold-x 110)
   (set-goal gl-gold-y 78)
   (set-goal gl-gold-search no-search)
-
-  ; Initializes DUC guard goals.
-  (set-goal gl-attack-wonder-search-state no-search)
 
   ; Initializes Siege Tower DUC goals.
   (set-goal g-siege-tower 0)
@@ -516,7 +515,7 @@
   (set-strategic-number sn-percent-attack-soldiers 100)
   (attack-now)
   (enable-timer t-attack attack-interval)
-  (enable-timer t-near-wonder near-wonder-interval)
+  (enable-timer t-duc-wonder i-duc-wonder)
   (disable-self)
 )
 
@@ -527,45 +526,52 @@
   (enable-timer t-attack attack-interval)
 )
 
-; Periodically tasks units within 30 tiles of the Wonder to attack it.
-; (defrule
-;   (timer-triggered t-near-wonder)
-; =>
-;   (set-goal gl-attack-wonder-search-state search-complete)
-;   (up-full-reset-search)
-;   (set-strategic-number sn-focus-player-number 1)
-;   (up-find-remote c: wonder c: 1)
-;   (up-get-search-state gl-local-total)
-;   (enable-timer t-near-wonder near-wonder-interval)
-; )
+(defrule
+  (timer-triggered t-duc-wonder)
+  (goal g-duc-wonder 0)
+=>
+  (set-goal g-duc-wonder 1)
+)
 
-; (defrule
-;   (goal gl-attack-wonder-search-state search-complete)
-;   (up-compare-goal gl-remote-total > 0)
-; =>
-;   (up-set-target-object search-remote c: 0)
-;   (up-get-point position-object gl-wonder-x)
-;   (up-set-target-point gl-wonder-x)
-;   (up-filter-distance c: -1 c: 30)
-;   (up-find-local c: mangonel-line c: 60)
-;   (up-find-local c: knight-line c: 60)
-;   (up-find-local c: teutonic-knight-line c: 60)
-;   (up-find-local c: militiaman-line c: 60)
-;   (up-get-search-state gl-local-total)
-; )
+; Tasks units within 8 tiles of the Wonder to attack it.
+(defrule
+  (goal g-duc-wonder 1)
+=>
+  (up-full-reset-search)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-find-remote c: wonder c: 1)
+  (up-get-search-state gl-local-total)
+)
 
-; (defrule
-;   (goal gl-attack-wonder-search-state search-complete)
-;   (up-compare-goal gl-local-total > 0)
-; =>
-;   (up-target-objects 1 action-default -1 stance-stand-ground)
-; )
+(defrule
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-get-point position-object gl-wonder-x)
+  (up-set-target-point gl-wonder-x)
+  (up-filter-distance c: -1 c: 8)
+  (up-find-local c: spearman-line c: 60)
+  (up-find-local c: teutonic-knight-line c: 60)
+  (up-find-local c: mangonel-line c: 60)
+  (up-get-search-state gl-local-total)
+)
 
-; (defrule
-;   (goal gl-attack-wonder-search-state search-complete)
-; =>
-;   (set-goal gl-attack-wonder-search-state no-search)
-; )
+(defrule
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-target-objects 1 action-default -1 -1)
+)
+
+(defrule
+  (goal g-duc-wonder 1)
+=>
+  (set-goal g-duc-wonder 0)
+  (enable-timer t-duc-wonder i-duc-wonder)
+)
 
 ; Siege Tower ==================================================================
 (defrule

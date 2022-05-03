@@ -3,8 +3,12 @@
 ; Heavy Scorpions.
 
 (defconst list-active 0)
+(defconst status-pending 0)
 (defconst status-resource 3)
 (defconst sn-special-attack-influence2 110)
+(defconst object-data-distance 44)
+(defconst search-order-none 0)
+(defconst search-order-asc 1)
 
 ; Monk with Relic object ID
 (defconst monk-with-relic 286)
@@ -29,6 +33,8 @@
 ; Coordinates of the Wonder.
 (defconst gl-wonder-x 210)
 (defconst gl-wonder-y 211)
+(defconst g-search-x 212)
+(defconst g-search-y 213)
 
 ; Goals for holding the x and y coordinates of the secondary Gold.
 (defconst gl-gold-main-x 300)
@@ -49,8 +55,9 @@
 (defconst attack-interval 60)
 
 ; Timer to check for units near the wonder and make them attack.
-(defconst t-near-wonder 2)
-(defconst near-wonder-interval 45)
+(defconst t-duc-wonder 2)
+(defconst i-duc-wonder 15)
+(defconst g-duc-wonder 400)
 
 ; Timer checking the status of the mine.
 (defconst t-gold-main-search 3)
@@ -146,6 +153,7 @@
   (set-goal gl-gold-main-search no-search)
   (set-goal gl-gold-right-search no-search)
 
+  (set-goal g-duc-wonder 0)
   (disable-self)
 )
 
@@ -439,11 +447,11 @@
 
 (defrule
   (game-time > 1200)
-  (unit-type-count-total trebuchet-set < 20)
+  (unit-type-count-total trebuchet-set < 7)
   (can-build trebuchet)
   (difficulty <= moderate)
 =>
-  (build trebuchet)
+  (train trebuchet)
 )
 
 (defrule
@@ -460,7 +468,7 @@
 )
 
 (defrule
-  (unit-type-count-total trebuchet-set < 5)
+  (unit-type-count-total trebuchet-set < 4)
   (can-train trebuchet)
 =>
   (train trebuchet)
@@ -468,7 +476,7 @@
 
 (defrule
   (or
-    (unit-type-count-total skirmisher-line < 10)
+    (unit-type-count-total skirmisher-line < 8)
     (and
       (game-time > 1200)
       (unit-type-count-total skirmisher-line < 20)
@@ -481,7 +489,7 @@
 )
 
 (defrule
-  (unit-type-count-total scorpion-line < 4)
+  (unit-type-count-total scorpion-line < 2)
   (can-train scorpion-line)
 =>
   (train scorpion-line)
@@ -501,7 +509,7 @@
   (set-strategic-number sn-percent-attack-soldiers 100)
   (attack-now)
   (enable-timer t-attack attack-interval)
-  ; (enable-timer t-near-wonder near-wonder-interval)
+  (enable-timer t-duc-wonder i-duc-wonder)
   (disable-self)
 )
 
@@ -512,42 +520,99 @@
   (enable-timer t-attack attack-interval)
 )
 
-; Periodically tasks units within 30 tiles of the Wonder to attack it.
-; (defrule
-;   (timer-triggered t-near-wonder)
-; =>
-;   (set-goal gl-attack-wonder-search-state search-complete)
-;   (up-full-reset-search)
-;   (set-strategic-number sn-focus-player-number 1)
-;   (up-find-remote c: wonder c: 1)
-;   (up-get-search-state gl-local-total)
-;   (enable-timer t-near-wonder near-wonder-interval)
-; )
+; Periodically tasks Trebuchets to attack castles, towers, tcs, and the wonder.
 
-; (defrule
-;   (goal gl-attack-wonder-search-state search-complete)
-;   (up-compare-goal gl-remote-total > 0)
-; =>
-;   (up-set-target-object search-remote c: 0)
-;   (up-get-point position-object gl-wonder-x)
-;   (up-set-target-point gl-wonder-x)
-;   (up-filter-distance c: -1 c: 30)
-;   ; these probably aren't the correct Treb values
-;   (up-find-local c: trebuchet c: 60)
-;   (up-find-local c: trebuchet-set c: 60)
-;   (up-find-local c: longbowman-line c: 60)
-;   (up-get-search-state gl-local-total)
-; )
+(defrule
+  (timer-triggered t-duc-wonder)
+  (goal g-duc-wonder 0)
+=>
+  (set-goal g-duc-wonder 1)
+)
 
-; (defrule
-;   (goal gl-attack-wonder-search-state search-complete)
-;   (up-compare-goal gl-local-total > 0)
-; =>
-;   (up-target-objects 1 action-default -1 stance-stand-ground)
-; )
+(defrule
+  (game-time < 1710)
+  (goal g-duc-wonder 1)
+=>
+  (up-full-reset-search)
+  (up-find-local c: unpacked-trebuchet-class c: 50)
+  (up-find-local c: packed-trebuchet-class c: 50)
+  (up-clean-search search-local -1 search-order-none)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-find-remote c: wonder c: 1)
+  (up-get-search-state gl-local-total)
+)
 
-; (defrule
-;   (goal gl-attack-wonder-search-state search-complete)
-; =>
-;   (set-goal gl-attack-wonder-search-state no-search)
-; )
+(defrule
+  (game-time < 1710)
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-get-point position-object gl-wonder-x)
+  (up-copy-point g-search-x gl-wonder-x)
+)
+
+(defrule
+  (game-time < 1710)
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+  (up-compare-goal g-search-x < 200)
+=>
+  (up-filter-distance c: -1 c: 15)
+  (up-set-target-point g-search-x)
+  (up-find-remote c: castle c: 5)
+  (up-find-remote c: tower-class c: 5)
+  (up-find-remote c: town-center c: 3)
+  (up-clean-search search-remote -1 search-order-none)
+  (up-get-search-state gl-local-total)
+  (up-modify-goal g-search-x c:+ 20)
+  (up-jump-rule -1)
+)
+
+(defrule
+  (game-time < 1710)
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-modify-goal g-search-x c:= 199)
+  (up-set-target-point g-search-x)
+  (up-clean-search search-remote object-data-distance search-order-asc)
+  (up-set-target-object search-remote c: 0)
+  (up-target-objects 1 action-default -1 -1)
+)
+
+; Tasks Longbowmen and Trebuchets to attack the Wonder within the final
+; 90 seconds.
+(defrule
+  (game-time >= 1710)
+  (goal g-duc-wonder 1)
+=>
+  (up-full-reset-search)
+  (up-find-local c: longbowman-line c: 100)
+  (up-find-local c: unpacked-trebuchet-class c: 50)
+  (up-find-local c: packed-trebuchet-class c: 50)
+  (up-clean-search search-local -1 search-order-none)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-find-remote c: wonder c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (game-time >= 1710)
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-target-objects 1 action-default -1 stance-no-attack)
+)
+
+(defrule
+  (goal g-duc-wonder 1)
+=>
+  (set-goal g-duc-wonder 0)
+  (enable-timer t-duc-wonder i-duc-wonder)
+)

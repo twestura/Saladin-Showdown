@@ -527,14 +527,14 @@
 )
 
 (defrule
-  (game-time > 1200)
+  (game-time > 1400)
   (can-research ri-galleon)
 =>
   (research ri-galleon)
 )
 
 (defrule
-  (game-time > 1200)
+  (game-time > 1400)
   (can-research ri-deck-guns)
 =>
   (research ri-deck-guns)
@@ -548,7 +548,7 @@
 )
 
 (defrule
-  (game-time > 1200)
+  (game-time > 1400)
   (can-research ri-fast-fire-ship)
 =>
   (research ri-fast-fire-ship)
@@ -595,7 +595,7 @@
 )
 
 (defrule
-  (unit-type-count-total fire-ship-line < 5)
+  (unit-type-count-total fire-ship-line < 3)
   (can-train fire-ship-line)
   (difficulty <= moderate)
 =>
@@ -627,10 +627,10 @@
 (defrule
   (difficulty <= hard)
   (or
-    (unit-type-count-total fire-ship-line < 8)
+    (unit-type-count-total fire-ship-line < 5)
     (and
       (game-time > 1500)
-      (unit-type-count-total fire-ship-line < 15)
+      (unit-type-count-total fire-ship-line < 8)
     )
   )
   (can-train fire-ship-line)
