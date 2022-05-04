@@ -1,0 +1,917 @@
+; Knights Templar AI
+; Make Teutonic Knights, Siege Onagers, Siege Towers, Champions, Paladins, and
+; Halbardiers. Attempts the micro the Teutonic Knights over walls with Siege
+; Towers.
+
+(defconst list-active 0)
+(defconst status-resource 3)
+(defconst object-data-distance 44)
+(defconst search-order-asc 1)
+(defconst sn-special-attack-influence2 110)
+
+; Monk with Relic object ID
+(defconst monk-with-relic 286)
+
+; For some reason siege-tower is not a pre-defined constant.
+(defconst siege-tower 1105)
+
+; Local search results
+(defconst gl-local-total 100)
+(defconst gl-local-last 101)
+(defconst gl-remote-total 102)
+(defconst gl-remote-last 103)
+
+; Locations at which to place the first two additional Town Centers.
+(defconst gl-tc-1-x 200)
+(defconst gl-tc-1-y 201)
+(defconst gl-tc-2-x 202)
+(defconst gl-tc-2-y 203)
+(defconst gl-num-placed-initial-tcs 204)
+
+; Coordinates of the Wonder.
+(defconst gl-wonder-x 210)
+(defconst gl-wonder-y 211)
+
+; Flag to indicate whether to process search results for sending units near the
+; Wonder to attack it.
+(defconst no-search 0)
+(defconst search-complete 1)
+
+; Timer to launch repeated attacks once attacking starts.
+(defconst t-attack 1)
+(defconst attack-interval 60)
+
+; Timer to check for units near the wonder and make them attack.
+(defconst t-duc-wonder 2)
+(defconst i-duc-wonder 5)
+(defconst g-duc-wonder 220)
+
+; Goals for holding the x and y coordinates of the secondary Gold and Stone.
+(defconst gl-gold-x 300)
+(defconst gl-gold-y 301)
+(defconst gl-gold-search 302)
+
+; Timers checking the status of the mine.
+(defconst t-gold-search 3)
+(defconst mine-interval 10)
+
+; Siege Tower duc.
+(defconst t-siege-tower 4)
+(defconst i-siege-tower 5)
+(defconst g-siege-tower 400)
+(defconst g-wall-x 401)
+(defconst g-wall-y 402)
+(defconst g-behind-x 403)
+(defconst g-behind-y 404)
+(defconst g-path-wall 405)
+(defconst g-path-behind 406)
+(defconst g-tower-ungarrisoned 407)
+(defconst g-tower-garrisoned 408)
+(defconst g-tower-x 409)
+(defconst g-tower-y 410)
+
+; Loop variables
+(defconst i 411)
+(defconst j 412)
+(defconst k 413)
+; The Teutonic Knight list starts at goal 414 and ends at goal 423.
+; Goal 424 is the first goal after the end of the list. The values of the list
+; are initialized implicitly to -1.
+(defconst ttk-list 414)
+(defconst ttk-list-end 424)
+
+; The distance of a Teutonic Knight attempting to path inside of the walls.
+(defconst g-ttk-path 424)
+(defconst g-siege-tower-id 425)
+(defconst g-ttk-id 426)
+
+; Coordinates of the Teutonic Knight for checking if it's on the same tile as an
+; off grid tower.
+(defconst g-ttk-x 427)
+(defconst g-ttk-y 428)
+; Flag for when a Teutonic Knight is in the city but the pathing check doesn't
+; work because of the off-grid placement of towers.
+(defconst g-is-off-grid 429)
+
+; Initializes strategic numbers.
+(defrule
+  (true)
+=>
+  ; Enables multiple buildings of the same type to be constructed at once.
+  (set-strategic-number sn-enable-new-building-system 1)
+
+  ; Allows dropsites to be adjacent to resources.
+  (set-strategic-number sn-allow-adjacent-dropsites 1)
+
+  ; Initializes Villagers to construct buildings.
+  (set-strategic-number sn-percent-civilian-explorers 0)
+  (set-strategic-number sn-percent-civilian-builders 100)
+  (set-strategic-number sn-percent-civilian-gatherers 0)
+  (set-strategic-number sn-cap-civilian-explorers 0)
+  (set-strategic-number sn-cap-civilian-builders 200)
+  (set-strategic-number sn-total-number-explorers 1)
+  (set-strategic-number sn-number-explore-groups 1)
+  (set-strategic-number sn-maximum-explore-group-size 1)
+
+  ; Initializes Army to defend.
+  (set-strategic-number sn-percent-attack-soldiers 0)
+
+  ; Initializes land Villager gatherer percentages.
+  (set-strategic-number sn-food-gatherer-percentage 35)
+  (set-strategic-number sn-wood-gatherer-percentage 45)
+  (set-strategic-number sn-gold-gatherer-percentage 20)
+  (set-strategic-number sn-stone-gatherer-percentage 0)
+
+  ; Makes attack groups larger.
+  (set-strategic-number sn-maximum-attack-group-size 200)
+  (set-strategic-number sn-minimum-attack-group-size 20)
+
+  ; Allows units to patroll while enroute to attacking distant targets.
+  (set-strategic-number sn-enable-patrol-attack 1)
+
+  ; Target the human player 1 for attacks.
+  (set-strategic-number sn-target-player-number 1)
+
+  ; Enables intelligent attacking.
+	(set-strategic-number sn-attack-intelligence 1)
+
+  ; Let's the AI attack walls.
+	(set-strategic-number sn-wall-targeting-mode 1)
+
+  ; Allows dropsites to be closer together.
+  (set-strategic-number sn-dropsite-separation-distance 3)
+
+  (set-strategic-number sn-placement-zone-size 5)
+
+  ; Prevents cancelling buildings when they are significantly completed.
+  (set-strategic-number sn-percent-building-cancellation 1)
+
+  ; Influences units to attack the Wonder.
+  (set-strategic-number sn-special-attack-influence2 10000)
+  (set-strategic-number sn-special-attack-type2 wonder)
+  (set-strategic-number sn-enable-offensive-priority 1)
+  (up-set-offense-priority c: wonder c: 11)
+  (up-set-offense-priority c: castle c: 10)
+  (up-set-offense-priority c: tower-class c: 9)
+  (disable-self)
+)
+
+; Initializes goals.
+(defrule
+  (true)
+=>
+  (set-goal g-duc-wonder 0)
+
+  ; Initializes the TC placement locations.
+  (set-goal gl-tc-1-x 149)
+  (set-goal gl-tc-1-y 66)
+  (set-goal gl-tc-2-x 177)
+  (set-goal gl-tc-2-y 80)
+  (set-goal gl-num-placed-initial-tcs 0)
+
+  (set-goal gl-gold-x 110)
+  (set-goal gl-gold-y 78)
+  (set-goal gl-gold-search no-search)
+
+  ; Initializes Siege Tower DUC goals.
+  (set-goal g-siege-tower 0)
+  (set-goal g-wall-x 92)
+  (set-goal g-wall-y 117)
+  (set-goal g-behind-x 91)
+  (set-goal g-behind-y 118)
+  (disable-self)
+)
+
+; Resign condition
+(defrule
+	(military-population < 4)
+	(unit-type-count-total villager < 1)
+	(not (can-train villager))
+  (building-type-count town-center < 1)
+  (building-type-count castle < 1)
+=>
+  (chat-to-all "Forsooth, my Teutonic Knights woudlst not ungarrison their Siege Towers to ask for directions!")
+  (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
+  (resign)
+  (disable-self)
+)
+
+; Cheat resources
+
+(defrule
+  (game-time >= 1200)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1350)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1500)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1650)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+; Building management.
+
+(defrule
+  (building-type-count-total lumber-camp == 0)
+  (building-type-count-total town-center == 0)
+  (wood-amount < 100)
+  (can-buy-commodity wood)
+=>
+  (buy-commodity wood)
+)
+
+(defrule
+  (building-type-count-total town-center < 3)
+  (stone-amount < 100)
+  (can-buy-commodity stone)
+=>
+  (buy-commodity stone)
+)
+
+; Places the first two TCs at set locations.
+(defrule
+  (up-can-build-line 0 gl-tc-1-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-1-x gl-tc-1-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (up-can-build-line 0 gl-tc-2-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-2-x gl-tc-2-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (building-type-count-total town-center < 3)
+  (can-build town-center)
+  (goal gl-num-placed-initial-tcs 2)
+=>
+  (build town-center)
+)
+
+(defrule
+  (population-headroom > 0)
+  (housing-headroom <= 10)
+  (up-pending-objects c: house < 3) ; Build at most 3 Houses at once.
+  (can-build house)
+=>
+  (build house)
+)
+
+(defrule
+  (or
+    (building-type-count-total castle < 1)
+    (and
+      (game-time > 520)
+      (building-type-count-total castle < 2)
+    )
+  )
+  (stone-amount < 650)
+  (can-buy-commodity stone)
+=>
+  (buy-commodity stone)
+)
+
+(defrule
+  (or
+    (building-type-count-total castle < 1)
+    (and
+      (game-time > 520)
+      (building-type-count-total castle < 2)
+    )
+  )
+  (can-build castle)
+=>
+  (build castle)
+)
+
+(defrule
+  (building-type-count-total monastery < 1)
+  (can-build monastery)
+=>
+  (build monastery)
+)
+
+(defrule
+  (building-type-count-total barracks < 3)
+  (can-build barracks)
+=>
+  (build barracks)
+)
+
+(defrule
+  (building-type-count siege-workshop < 3)
+  (can-build siege-workshop)
+=>
+  (build siege-workshop)
+)
+
+(defrule
+  (building-type-count-total stable < 2)
+  (can-build stable)
+=>
+  (build stable)
+)
+
+(defrule
+  (building-type-count-total market < 1)
+  (can-build market)
+=>
+  (build market)
+)
+
+(defrule
+  (or
+    (building-type-count-total lumber-camp == 0)
+    (and
+      (building-type-count-total lumber-camp > 0)
+      (and
+        (dropsite-min-distance wood > 4)
+        (dropsite-min-distance wood < 255)
+      )
+    )
+  )
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+(defrule
+  (building-type-count-total lumber-camp < 3)
+  (unit-type-count-total villager > 30)
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+; Farms and Mills
+
+(defrule
+  (building-type-count-total farm < 80)
+  (up-pending-objects c: farm < 5)
+  (idle-farm-count < 5)
+  (can-build farm)
+=>
+  (build farm)
+)
+
+(defrule
+  (building-type-count-total farm > 20)
+  (building-type-count-total mill < 3)
+  (can-build mill)
+=>
+  (build mill)
+)
+
+(defrule
+  (game-time > 600)
+  (up-timer-status t-gold-search != timer-running)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 7)
+  (up-get-search-state gl-local-total)
+  (set-goal gl-gold-search search-complete)
+  (enable-timer t-gold-search mine-interval)
+)
+
+(defrule
+  (goal gl-gold-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-search search-complete)
+=>
+  (set-goal gl-gold-search no-search)
+)
+
+(defrule
+  (unit-type-count-total villager < 100)
+  (can-train villager)
+=>
+  (train villager)
+)
+
+(defrule
+  (unit-type-count-total monk < 1)
+  (unit-type-count-total monk-with-relic < 1)
+  (can-train monk)
+=>
+  (train monk)
+)
+
+(defrule
+  (game-time > 660) ; Don't reveal the Siege Tower too soon.
+  (unit-type-count-total siege-tower < 1)
+  (can-train siege-tower)
+=>
+  (train siege-tower)
+)
+
+(defrule
+  (unit-type-count-total teutonic-knight-line < 40)
+  (can-train teutonic-knight-line)
+=>
+  (train teutonic-knight-line)
+)
+
+(defrule
+  (or
+    (unit-type-count-total mangonel-line < 4)
+    (and
+      (and
+        (game-time > 1020)
+        (unit-type-count-total mangonel-line < 10)
+      )
+      (difficulty <= hard)
+    )
+  )
+  (can-train mangonel-line)
+=>
+  (train mangonel-line)
+)
+
+
+(defrule
+  (or
+    (unit-type-count-total knight-line < 10)
+    (and
+      (game-time > 1020)
+      (unit-type-count-total knight-line < 20)
+    )
+  )
+  (can-train knight-line)
+=>
+  (train knight-line)
+)
+
+(defrule
+  (unit-type-count-total spearman-line < 20)
+  (can-train spearman-line)
+=>
+  (train spearman-line)
+)
+
+(defrule
+  (game-time > 1020)
+  (unit-type-count-total militiaman-line < 10)
+  (can-train militiaman-line)
+  (difficulty <= hard)
+=>
+  (train militiaman-line)
+)
+
+; Attack management
+
+(defrule
+  (town-under-attack)
+=>
+  (attack-now)
+)
+
+(defrule
+  (game-time > 840)
+=>
+  (set-strategic-number sn-percent-attack-soldiers 100)
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+  (enable-timer t-duc-wonder i-duc-wonder)
+  (disable-self)
+)
+
+(defrule
+  (timer-triggered t-attack)
+=>
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+)
+
+(defrule
+  (timer-triggered t-duc-wonder)
+  (goal g-duc-wonder 0)
+=>
+  (set-goal g-duc-wonder 1)
+)
+
+; Tasks units within 8 tiles of the Wonder to attack it.
+(defrule
+  (goal g-duc-wonder 1)
+=>
+  (up-full-reset-search)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-find-remote c: wonder c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-get-point position-object gl-wonder-x)
+  (up-set-target-point gl-wonder-x)
+  (up-filter-distance c: -1 c: 8)
+  (up-find-local c: spearman-line c: 60)
+  (up-find-local c: teutonic-knight-line c: 60)
+  (up-find-local c: mangonel-line c: 60)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-target-objects 1 action-default -1 -1)
+)
+
+(defrule
+  (goal g-duc-wonder 1)
+=>
+  (set-goal g-duc-wonder 0)
+  (enable-timer t-duc-wonder i-duc-wonder)
+)
+
+; Siege Tower ==================================================================
+(defrule
+  ; Starts this timer a bit before the attack to get the garrison process
+  ; going, if the pathing is possible.
+  (game-time > 820)
+  (up-timer-status t-siege-tower != timer-running)
+  (goal g-siege-tower 0)
+=>
+  (set-goal g-siege-tower 1)
+  (set-goal g-tower-ungarrisoned 0)
+  (set-goal g-tower-garrisoned 0)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+=>
+  (up-full-reset-search)
+  (up-filter-garrison c: -1 c: 9)
+  (up-find-local c: siege-tower c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (set-goal g-tower-ungarrisoned 1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 0)
+=>
+  (up-full-reset-search)
+  (up-filter-garrison c: 10 c: 10)
+  (up-find-local c: siege-tower c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 0)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (set-goal g-tower-garrisoned 1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (or
+    (goal g-tower-ungarrisoned 1)
+    (goal g-tower-garrisoned 1)
+  )
+=>
+  (up-full-reset-search)
+  (up-reset-filters)
+  (up-find-local c: siege-tower c: 1)
+
+  (up-reset-filters)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-set-target-point g-wall-x)
+  (up-filter-distance c: -1 c: 1)
+  (up-find-remote c: fortified-wall c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (or
+    (goal g-tower-ungarrisoned 1)
+    (goal g-tower-garrisoned 1)
+  )
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-local c: 0)
+  (up-get-path-distance g-wall-x 1 g-path-wall)
+  (up-get-path-distance g-behind-x 1 g-path-behind)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+=>
+  (up-set-target-object search-local c: 0)
+  (up-get-point position-object g-tower-x)
+  (up-set-target-point g-tower-x)
+  (up-reset-search 1 1 0 0)
+  (up-reset-filters)
+  (up-find-local c: teutonic-knight-line c: 240)
+  (up-clean-search search-local object-data-distance search-order-asc)
+  (up-get-search-state gl-local-total)
+  (set-goal i 0)
+  (set-goal j ttk-list)
+  (set-goal k ttk-list)
+  (up-get-object-data object-data-id g-siege-tower-id)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal i g:!= gl-local-total)
+  (not (goal j ttk-list-end))
+=>
+  (up-set-target-object search-local g: i)
+  (up-get-path-distance g-behind-x 1 g-ttk-path)
+  (up-get-point position-object g-ttk-x)
+  (set-goal g-is-off-grid 0)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal i g:!= gl-local-total)
+  (not (goal j ttk-list-end))
+  (goal g-ttk-path 65535)
+  (goal g-is-off-grid 0)
+  (or
+    (or
+      (and (goal g-ttk-x 92) (goal g-ttk-y 120))
+      (and (goal g-ttk-x 92) (goal g-ttk-y 121))
+    )
+    (or
+      (and (goal g-ttk-x 93) (goal g-ttk-y 120))
+      (and (goal g-ttk-x 93) (goal g-ttk-y 121))
+    )
+  )
+=>
+  (set-goal g-is-off-grid 1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal i g:!= gl-local-total)
+  (not (goal j ttk-list-end))
+  (goal g-ttk-path 65535)
+  (goal g-is-off-grid 0)
+  (or
+    (or
+      (and (goal g-ttk-x 73) (goal g-ttk-y 109))
+      (and (goal g-ttk-x 73) (goal g-ttk-y 110))
+    )
+    (or
+      (and (goal g-ttk-x 74) (goal g-ttk-y 109))
+      (and (goal g-ttk-x 74) (goal g-ttk-y 110))
+    )
+  )
+=>
+  (set-goal g-is-off-grid 1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal i g:!= gl-local-total)
+  (not (goal j ttk-list-end))
+  (goal g-ttk-path 65535)
+  (goal g-is-off-grid 0)
+  (or
+    (or
+      (and (goal g-ttk-x 59) (goal g-ttk-y 120))
+      (and (goal g-ttk-x 59) (goal g-ttk-y 121))
+    )
+    (or
+      (and (goal g-ttk-x 60) (goal g-ttk-y 120))
+      (and (goal g-ttk-x 60) (goal g-ttk-y 121))
+    )
+  )
+=>
+  (set-goal g-is-off-grid 1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal i g:!= gl-local-total)
+  (not (goal j ttk-list-end))
+  (goal g-ttk-path 65535)
+  (goal g-is-off-grid 0)
+  (or
+    (or
+      (and (goal g-ttk-x 62) (goal g-ttk-y 147))
+      (and (goal g-ttk-x 62) (goal g-ttk-y 148))
+    )
+    (or
+      (and (goal g-ttk-x 63) (goal g-ttk-y 147))
+      (and (goal g-ttk-x 63) (goal g-ttk-y 148))
+    )
+  )
+=>
+  (set-goal g-is-off-grid 1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal i g:!= gl-local-total)
+  (not (goal j ttk-list-end))
+  (goal g-ttk-path 65535)
+  (goal g-is-off-grid 0)
+  (or
+    (or
+      (and (goal g-ttk-x 100) (goal g-ttk-y 129))
+      (and (goal g-ttk-x 100) (goal g-ttk-y 130))
+    )
+    (or
+      (and (goal g-ttk-x 101) (goal g-ttk-y 129))
+      (and (goal g-ttk-x 101) (goal g-ttk-y 130))
+    )
+  )
+=>
+  (set-goal g-is-off-grid 1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal i g:!= gl-local-total)
+  (not (goal j ttk-list-end))
+  (goal g-ttk-path 65535)
+  (goal g-is-off-grid 0)
+  (or
+    (or
+      (and (goal g-ttk-x 93) (goal g-ttk-y 136))
+      (and (goal g-ttk-x 93) (goal g-ttk-y 137))
+    )
+    (or
+      (and (goal g-ttk-x 94) (goal g-ttk-y 136))
+      (and (goal g-ttk-x 94) (goal g-ttk-y 137))
+    )
+  )
+=>
+  (set-goal g-is-off-grid 1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal i g:!= gl-local-total)
+  (not (goal j ttk-list-end))
+  (goal g-ttk-path 65535)
+  (goal g-is-off-grid 0)
+=>
+  (up-get-object-data object-data-id g-ttk-id)
+  (up-set-indirect-goal g: j g: g-ttk-id)
+  (up-modify-goal j c:+ 1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal i g:!= gl-local-total)
+  (not (goal j ttk-list-end))
+=>
+  (up-modify-goal i c:+ 1)
+  (up-jump-rule -9)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+=>
+  (up-reset-search 1 1 0 0)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+  (up-compare-goal j g:!= k)
+=>
+  (up-get-indirect-goal g: k g-ttk-id)
+  (up-add-object-by-id search-local g: g-ttk-id)
+  (up-modify-goal k c:+ 1)
+  (up-jump-rule -1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-ungarrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+=>
+  (up-set-target-by-id g: g-siege-tower-id)
+  (up-target-objects 1 action-default -1 -1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+  (goal g-tower-garrisoned 1)
+  (up-compare-goal gl-remote-total > 0)
+  (not (goal g-wall-x 65535))
+  (goal g-path-behind 65535)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-target-objects 1 action-default -1 -1)
+)
+
+(defrule
+  (goal g-siege-tower 1)
+=>
+  (set-goal g-siege-tower 0)
+  (enable-timer t-siege-tower i-siege-tower)
+)
+; Siege Tower ==================================================================

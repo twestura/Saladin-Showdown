@@ -1,0 +1,246 @@
+; Persian Outpost immobile AI.
+;
+; The AI contains several cheat codes that the player can enter into the chat.
+;
+; Using the Unload effect, the Transport Ships may become "stuck" if they
+; cannot unload all of their elephants at once. And looping the effect leads to
+; elephants unloading at weird locations. The AI script loops to call unload for
+; the Transport Ships every few seconds until the unload is successful.
+
+; Timers for managing Transport movement.
+(defconst t-duc 1)
+(defconst i-duc 2)
+
+; The id of each transport.
+(defconst transport1-id 24958)
+(defconst transport2-id 24959)
+(defconst transport3-id 24960)
+
+; Event for the Transport to begin unloading.
+(defconst start1 1)
+(defconst start2 2)
+(defconst start3 3)
+
+; Events indicating the Transport has finished dropping off Elephants.
+(defconst exit1 4)
+(defconst exit2 5)
+(defconst exit3 6)
+
+; duc timer rule guard.
+(defconst g-duc 1)
+
+; The point at which to unload.
+(defconst g-unload-x 200)
+(defconst g-unload-y 201)
+
+; The point to move the Transport to remove it after unloading.
+(defconst g-exit-x 202)
+(defconst g-exit-y 203)
+
+(defrule
+  (true)
+=>
+  ; Villagers
+  (set-strategic-number sn-maximum-food-drop-distance 0)
+  (set-strategic-number sn-maximum-wood-drop-distance 0)
+  (set-strategic-number sn-maximum-gold-drop-distance 0)
+  (set-strategic-number sn-maximum-stone-drop-distance 0)
+  (set-strategic-number sn-maximum-hunt-drop-distance 0)
+  (set-strategic-number sn-food-gatherer-percentage 0)
+  (set-strategic-number sn-stone-gatherer-percentage 0)
+  (set-strategic-number sn-gold-gatherer-percentage 0)
+  (set-strategic-number sn-wood-gatherer-percentage 0)
+  (set-strategic-number sn-cap-civilian-explorers 0)
+  (set-strategic-number sn-percent-civilian-explorers 0)
+
+  ; Military
+  (set-strategic-number sn-percent-enemy-sighted-response 100)
+  (set-strategic-number sn-hits-before-alliance-change 25)
+  (set-strategic-number sn-number-explore-groups 0)
+  (set-strategic-number sn-percent-attack-soldiers 0)
+  (set-strategic-number sn-task-ungrouped-soldiers 0)
+  (set-strategic-number sn-number-attack-groups 0)
+  (set-strategic-number sn-enemy-sighted-response-distance 10)
+  (set-strategic-number sn-total-number-explorers 0)
+  (set-strategic-number sn-relic-return-distance 0)
+  (set-difficulty-parameter ability-to-maintain-distance 0)
+  (set-difficulty-parameter ability-to-dodge-missiles 0)
+
+  ; Goals
+  (set-goal g-duc 0)
+  (set-goal g-unload-x 80)
+  (set-goal g-unload-y 137)
+  (set-goal g-exit-x 40)
+  (set-goal g-exit-y 199)
+
+  (disable-self)
+)
+
+(defconst epsilon "")
+
+; One time cheat to spawn lots of Cobra Cars and Photonmen in the city.
+(defconst ornlu-signal 0)
+(defconst ornlu "ornluisagoodwolf")
+
+; saveN is a cheat to torpedo all enemies except player N.
+(defconst save2 "save2")
+(defconst save3 "save3")
+(defconst save4 "save4")
+(defconst save5 "save5")
+(defconst save6 "save6")
+
+; roadmap disables the Wonder defense timer and let's you play forever.
+; That is, until the roadmap is released.
+(defconst roadmap-signal 1)
+(defconst roadmap "roadmap")
+
+(defrule
+  (cheats-enabled)
+=>
+  (up-store-player-chat 1)
+)
+
+(defrule
+  (cheats-enabled)
+  (up-compare-text c: ornlu >= 0)
+=>
+  (set-signal ornlu-signal)
+  (disable-self)
+)
+
+(defrule
+  (cheats-enabled)
+  (up-compare-text c: save2 >= 0)
+=>
+  (up-cc-send-cheat "torpedo3")
+  (up-cc-send-cheat "torpedo4")
+  (up-cc-send-cheat "torpedo5")
+  (up-cc-send-cheat "torpedo6")
+)
+
+(defrule
+  (cheats-enabled)
+  (up-compare-text c: save3 >= 0)
+=>
+  (up-cc-send-cheat "torpedo2")
+  (up-cc-send-cheat "torpedo4")
+  (up-cc-send-cheat "torpedo5")
+  (up-cc-send-cheat "torpedo6")
+)
+
+(defrule
+  (cheats-enabled)
+  (up-compare-text c: save4 >= 0)
+=>
+  (up-cc-send-cheat "torpedo2")
+  (up-cc-send-cheat "torpedo3")
+  (up-cc-send-cheat "torpedo5")
+  (up-cc-send-cheat "torpedo6")
+)
+
+(defrule
+  (cheats-enabled)
+  (up-compare-text c: save5 >= 0)
+=>
+  (up-cc-send-cheat "torpedo2")
+  (up-cc-send-cheat "torpedo3")
+  (up-cc-send-cheat "torpedo4")
+  (up-cc-send-cheat "torpedo6")
+)
+
+(defrule
+  (cheats-enabled)
+  (up-compare-text c: save6 >= 0)
+=>
+  (up-cc-send-cheat "torpedo2")
+  (up-cc-send-cheat "torpedo3")
+  (up-cc-send-cheat "torpedo4")
+  (up-cc-send-cheat "torpedo5")
+)
+
+(defrule
+  (cheats-enabled)
+  (up-compare-text c: roadmap >= 0)
+=>
+  (set-signal roadmap-signal)
+  (disable-self)
+)
+
+(defrule
+  (cheats-enabled)
+=>
+  (up-store-text c: epsilon)
+)
+
+(defrule
+  (up-timer-status t-duc != timer-running)
+=>
+  (set-goal g-duc 1)
+)
+
+; Transport 1
+(defrule
+  (goal g-duc 1)
+  (event-detected trigger start1)
+  (not (event-detected trigger exit1))
+=>
+  (up-full-reset-search)
+  (up-add-object-by-id search-local c: transport1-id)
+  (up-target-point g-unload-x action-unload -1 -1)
+)
+
+(defrule
+  (goal g-duc 1)
+  (event-detected trigger exit1)
+=>
+  (up-full-reset-search)
+  (up-add-object-by-id search-local c: transport1-id)
+  (up-target-point g-exit-x action-move -1 -1)
+)
+
+; Transport 2
+(defrule
+  (goal g-duc 1)
+  (event-detected trigger start2)
+  (not (event-detected trigger exit2))
+=>
+  (up-full-reset-search)
+  (up-add-object-by-id search-local c: transport2-id)
+  (up-target-point g-unload-x action-unload -1 -1)
+)
+
+(defrule
+  (goal g-duc 1)
+  (event-detected trigger exit2)
+=>
+  (up-full-reset-search)
+  (up-add-object-by-id search-local c: transport2-id)
+  (up-target-point g-exit-x action-move -1 -1)
+)
+
+; Transport 3
+(defrule
+  (goal g-duc 1)
+  (event-detected trigger start3)
+  (not (event-detected trigger exit3))
+=>
+  (up-full-reset-search)
+  (up-add-object-by-id search-local c: transport3-id)
+  (up-target-point g-unload-x action-unload -1 -1)
+)
+
+(defrule
+  (goal g-duc 1)
+  (event-detected trigger exit3)
+=>
+  (up-full-reset-search)
+  (up-add-object-by-id search-local c: transport3-id)
+  (up-target-point g-exit-x action-move -1 -1)
+)
+
+(defrule
+  (goal g-duc 1)
+=>
+  (set-goal g-duc 0)
+  (enable-timer t-duc i-duc)
+)

@@ -1,0 +1,1034 @@
+; Franks Player
+; Concentrates on building forward Castles and supporting them with Paladins,
+; Hand Cannoneers, Throwing Axemen, and a few Halbs. Adds in Bombard Cannons
+; as siege.
+; Builds only 1 forward Castle on Standard and only 2 on Moderate.
+
+(defconst list-active 0)
+(defconst status-resource 3)
+(defconst sn-special-attack-influence2 110)
+(defconst action-attack-move 19)
+
+; Stone mine constant for use in remote searches.
+(defconst stone-mine 102)
+
+; Monk with Relic object ID
+(defconst monk-with-relic 286)
+
+; Local search results
+(defconst gl-local-total 100)
+(defconst gl-local-last 101)
+(defconst gl-remote-total 102)
+(defconst gl-remote-last 103)
+
+; Locations at which to place the first two additional Town Centers.
+(defconst gl-tc-1-x 200)
+(defconst gl-tc-1-y 201)
+(defconst gl-tc-2-x 202)
+(defconst gl-tc-2-y 203)
+(defconst gl-num-placed-initial-tcs 204)
+
+; Coordinates of the Wonder.
+(defconst gl-wonder-x 210)
+(defconst gl-wonder-y 211)
+
+; Flag to indicate whether to process search results for sending units near the
+; Wonder to attack it.
+(defconst g-duc-wonder 220)
+(defconst no-search 0)
+(defconst search-complete 1)
+
+; Timer to launch repeated attacks once attacking starts.
+(defconst t-attack 1)
+(defconst attack-interval 60)
+
+; Timer to check for units near the wonder and make them attack.
+(defconst t-duc-wonder 2)
+(defconst i-duc-wonder 5)
+
+; Goals for holding the x and y coordinates of the secondary Gold and Stone.
+(defconst gl-gold-x 300)
+(defconst gl-gold-y 301)
+(defconst gl-stone-x 302)
+(defconst gl-stone-y 303)
+(defconst gl-gold-search 304)
+(defconst gl-stone-search 305)
+
+; Forward Castle Coordinates
+(defconst gl-castle-1a-x 350)
+(defconst gl-castle-1a-y 351)
+(defconst gl-castle-1b-x 352)
+(defconst gl-castle-1b-y 353)
+(defconst gl-castle-2-x 354)
+(defconst gl-castle-2-y 355)
+(defconst gl-castle-3-x 356)
+(defconst gl-castle-3-y 357)
+
+; Timers checking the status of the mines.
+(defconst t-stone-search 3)
+(defconst t-gold-search 4)
+(defconst mine-interval 10)
+
+; Timer for checking when to build a Castle.
+(defconst t-castle 5)
+(defconst i-castle 15)
+(defconst gl-castle-search 358)
+
+; Flags to check whether castles are constructed in their forward locations.
+(defconst gl-is-castle1-present 359)
+(defconst gl-is-castle2-present 360)
+(defconst gl-is-castle3-present 361)
+(defconst absent 0)
+(defconst present 1)
+
+; Flags to control whether the first castle should be built.
+(defconst gl-build-castle-1 362)
+(defconst no-build 0)
+(defconst yes-build 1)
+
+; Goals to control the randomish Castle placement.
+(defconst g-random-x 363)
+(defconst g-random-y 364)
+
+; Points for attack moving rams to concentrate on breaking through walls.
+(defconst t-rams 6)
+(defconst i-rams 20)
+(defconst g-gather-ram-x 365)
+(defconst g-gather-ram-y 366)
+(defconst g-chokepoint-x 367)
+(defconst g-chokepoint-y 368)
+(defconst g-attack-x 369)
+(defconst g-attack-y 370)
+
+; Initializes strategic numbers.
+(defrule
+  (true)
+=>
+  ; Enables multiple buildings of the same type to be constructed at once.
+  (set-strategic-number sn-enable-new-building-system 1)
+
+  ; Allows dropsites to be adjacent to resources.
+  (set-strategic-number sn-allow-adjacent-dropsites 1)
+
+  ; Initializes Villagers to construct buildings.
+  (set-strategic-number sn-percent-civilian-explorers 0)
+  (set-strategic-number sn-percent-civilian-builders 100)
+  (set-strategic-number sn-percent-civilian-gatherers 0)
+  (set-strategic-number sn-cap-civilian-explorers 0)
+  (set-strategic-number sn-cap-civilian-builders 200)
+  (set-strategic-number sn-total-number-explorers 1)
+  (set-strategic-number sn-number-explore-groups 1)
+  (set-strategic-number sn-maximum-explore-group-size 1)
+
+  ; Initializes Army to defend.
+  (set-strategic-number sn-percent-attack-soldiers 0)
+
+  ; Initializes land Villager gatherer percentages.
+  (set-strategic-number sn-food-gatherer-percentage 30)
+  (set-strategic-number sn-wood-gatherer-percentage 45)
+  (set-strategic-number sn-gold-gatherer-percentage 25)
+  (set-strategic-number sn-stone-gatherer-percentage 0)
+
+  ; Makes attack groups larger.
+  (set-strategic-number sn-maximum-attack-group-size 200)
+  (set-strategic-number sn-minimum-attack-group-size 20)
+
+  ; Allows units to patroll while enroute to attacking distant targets.
+  (set-strategic-number sn-enable-patrol-attack 1)
+
+  ; Target the human player 1 for attacks.
+  (set-strategic-number sn-target-player-number 1)
+
+  ; Enables intelligent attacking.
+	(set-strategic-number sn-attack-intelligence 1)
+
+  ; Let's the AI attack walls.
+	(set-strategic-number sn-wall-targeting-mode 1)
+
+  ; Allows dropsites to be closer together.
+  (set-strategic-number sn-dropsite-separation-distance 3)
+
+  (set-strategic-number sn-placement-zone-size 5)
+
+  ; Prevents cancelling buildings when they are significantly completed.
+  (set-strategic-number sn-percent-building-cancellation 1)
+
+  ; Influences units to attack the Wonder.
+  (set-strategic-number sn-special-attack-influence2 10000)
+  (set-strategic-number sn-special-attack-type2 wonder)
+  (set-strategic-number sn-enable-offensive-priority 1)
+  (up-set-offense-priority c: wonder c: 11)
+  (up-set-offense-priority c: castle c: 10)
+  (up-set-offense-priority c: tower-class c: 9)
+  (disable-self)
+)
+
+; Initializes goals.
+(defrule
+  (true)
+=>
+  ; Initializes the TC placement locations.
+  (set-goal gl-tc-1-x 156)
+  (set-goal gl-tc-1-y 60)
+  (set-goal gl-tc-2-x 167)
+  (set-goal gl-tc-2-y 54)
+  (set-goal gl-num-placed-initial-tcs 0)
+
+  ; Initializes Gold and Stone coordinates.
+  (set-goal gl-gold-x 110)
+  (set-goal gl-gold-y 75)
+  (set-goal gl-stone-x 133)
+  (set-goal gl-stone-y 63)
+
+  ; Initializes DUC guard goals.
+  (set-goal g-duc-wonder 0)
+  (set-goal gl-stone-search no-search)
+  (set-goal gl-gold-search no-search)
+
+  (set-goal gl-castle-1a-x 99)
+  (set-goal gl-castle-1a-y 92)
+  (set-goal gl-castle-1b-x 111)
+  (set-goal gl-castle-1b-y 99)
+  (set-goal gl-castle-2-x 103)
+  (set-goal gl-castle-2-y 113)
+  (set-goal gl-castle-3-x 93)
+  (set-goal gl-castle-3-y 125)
+
+  (set-goal gl-castle-search no-search)
+
+  (set-goal gl-is-castle1-present absent)
+  (set-goal gl-is-castle2-present absent)
+  (set-goal gl-is-castle3-present absent)
+  (set-goal gl-build-castle-1 no-build)
+
+  (disable-self)
+)
+
+; Initializes more goals and unit micro.
+(defrule
+  (true)
+=>
+  (set-goal g-gather-ram-x 100)
+  (set-goal g-gather-ram-y 90)
+  (set-goal g-chokepoint-x 100)
+  (set-goal g-chokepoint-y 105)
+  (set-goal g-attack-x 100)
+  (set-goal g-attack-y 110)
+
+  (set-difficulty-parameter ability-to-dodge-missiles 80)
+  (set-difficulty-parameter ability-to-maintain-distance 15)
+)
+
+; When the player goes for a Castle drop, send lots of Villagers.
+; But don't send all Villagers to their deaths, stop sending if Villager
+; population is too low.
+(defrule
+  (unit-type-count-total villager < 25)
+=>
+  (up-assign-builders c: castle c: -1)
+)
+
+(defrule
+  (unit-type-count-total villager < 25)
+  (unit-type-count-total villager >= 20)
+=>
+  (up-assign-builders c: castle c: 5)
+)
+
+(defrule
+  (unit-type-count-total villager < 30)
+  (unit-type-count-total villager >= 25)
+=>
+  (up-assign-builders c: castle c: 10)
+)
+
+(defrule
+  (unit-type-count-total villager >= 30)
+=>
+  (up-assign-builders c: castle c: 15)
+)
+
+; Resign condition
+(defrule
+  (military-population < 6)
+  (unit-type-count-total villager < 1)
+  (not (can-train villager))
+  (building-type-count town-center < 1)
+  (building-type-count castle < 1)
+=>
+  (chat-to-all "The graceless Templars hath mined my Gold! Typical AI.")
+  (chat-to-all "No wonder thou wert victorious! I shalt abdicate.")
+  (resign)
+  (disable-self)
+)
+
+; Cheat resources
+
+(defrule
+  (game-time >= 660)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 840)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1020)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1200)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1350)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1500)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+(defrule
+  (game-time >= 1650)
+=>
+  (cc-add-resource food 1000)
+  (cc-add-resource wood 1000)
+  (cc-add-resource gold 1000)
+  (disable-self)
+)
+
+; Building management.
+
+(defrule
+  (building-type-count-total lumber-camp == 0)
+  (building-type-count-total town-center == 0)
+  (wood-amount < 100)
+  (can-buy-commodity wood)
+=>
+  (buy-commodity wood)
+)
+
+(defrule
+  (building-type-count-total town-center < 3)
+  (stone-amount < 100)
+  (can-buy-commodity stone)
+=>
+  (buy-commodity stone)
+)
+
+; Places the first two TCs at set locations.
+(defrule
+  (up-can-build-line 0 gl-tc-1-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-1-x gl-tc-1-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (up-can-build-line 0 gl-tc-2-x c: town-center-foundation)
+=>
+  (up-build-line gl-tc-2-x gl-tc-2-x c: town-center-foundation)
+  (up-modify-goal gl-num-placed-initial-tcs c:+ 1)
+  (disable-self)
+)
+
+(defrule
+  (building-type-count-total town-center < 3)
+  (can-build town-center)
+  (goal gl-num-placed-initial-tcs 2)
+=>
+  (build town-center)
+)
+
+(defrule
+  (population-headroom > 0)
+  (housing-headroom <= 10)
+  (up-pending-objects c: house < 3) ; Build at most 3 Houses at once.
+  (can-build house)
+=>
+  (build house)
+)
+
+; place-point Castle Placement
+; If all 3 Castles are up, then just build-forward more Castles.
+; If there is a Castle in any spot other than spot 2, build a Castle in spot 2.
+; If there is no Castle in spot 3 and a Castle in spot 2, then build a Castle in
+; spot 3.
+; If there is no Castle in spot 2 and no Castle in spot 3, then check if either
+; spot 1 is occupied. If so then build a Castle in spot 2. Otherwise build a
+; castle in spot 1.
+
+(defrule
+  (not (up-timer-status t-castle == timer-running))
+=>
+  (set-goal gl-castle-search search-complete)
+  (set-goal gl-is-castle1-present absent)
+  (set-goal gl-is-castle2-present absent)
+  (set-goal gl-is-castle3-present absent)
+  (set-goal gl-build-castle-1 no-build)
+)
+
+; Searches for a Castle in the first spot.
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-castle-1a-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: castle c: 1)
+  (up-reset-filters)
+  (up-set-target-point gl-castle-1b-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: castle c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (set-goal gl-is-castle1-present present)
+)
+
+; Searches for a Castle in the second spot.
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-castle-2-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: castle c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (set-goal gl-is-castle2-present present)
+)
+
+; Searches for a Castle in the third spot.
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-castle-3-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: castle c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (up-compare-goal gl-local-total > 0)
+=>
+  (set-goal gl-is-castle3-present present)
+)
+
+; Builds Castles based on which Castles already are standing.
+
+; Continues building forward Castles if all 3 spots are occupied.
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-is-castle1-present present)
+  (goal gl-is-castle2-present present)
+  (goal gl-is-castle3-present present)
+  (unit-type-count-total villager > 30)
+  (not (up-pending-placement c: castle))
+  (up-pending-objects c: castle == 0)
+  (can-build castle)
+  (difficulty <= hard)
+=>
+  (build-forward castle)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (or
+    (goal gl-is-castle1-present absent)
+    (or
+      (goal gl-is-castle2-present absent)
+      (goal gl-is-castle3-present absent)
+    )
+  )
+  (stone-amount < 650)
+  (can-buy-commodity stone)
+=>
+  (buy-commodity stone)
+)
+
+; Slightly randomizes Castle placement.
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (generate-random-number 5)
+  (set-goal g-random-x 0)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (random-number == 1)
+=>
+  (set-goal g-random-x -2)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (random-number == 2)
+=>
+  (set-goal g-random-x -1)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (random-number == 4)
+=>
+  (set-goal g-random-x 1)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (random-number == 5)
+=>
+  (set-goal g-random-x 2)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (generate-random-number 2)
+  (set-goal g-random-y 0)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (random-number == 1)
+=>
+  (set-goal g-random-y -1)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (random-number == 3)
+=>
+  (set-goal g-random-y 1)
+)
+
+; Randomly adjusts points.
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (up-add-point gl-castle-1a-x g-random-x c: 1)
+  (up-add-point gl-castle-1b-x g-random-x c: 1)
+  (up-add-point gl-castle-2-x g-random-x c: 1)
+  (up-add-point gl-castle-3-x g-random-x c: 1)
+)
+
+; Builds the 3rd Castle if the 2nd is present.
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-is-castle2-present present)
+  (goal gl-is-castle3-present absent)
+  (not (up-pending-placement c: castle))
+  (unit-type-count-total villager > 30)
+  (up-pending-objects c: castle == 0)
+  (up-can-build-line 0 gl-castle-3-x c: castle)
+  (difficulty <= hard)
+=>
+  (up-build-line gl-castle-3-x gl-castle-3-x c: castle)
+)
+
+; Builds the 2nd Castle if the 1st or 3rd are present.
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-is-castle2-present absent)
+  (or
+    (goal gl-is-castle1-present present)
+    (goal gl-is-castle3-present present)
+  )
+  (unit-type-count-total villager > 30)
+  (not (up-pending-placement c: castle))
+  (up-pending-objects c: castle == 0)
+  (up-can-build-line 0 gl-castle-2-x c: castle)
+  (difficulty <= moderate)
+=>
+  (up-build-line gl-castle-2-x gl-castle-2-x c: castle)
+)
+
+; Builds the 1st Castle randomly in one of its two locations.
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-is-castle1-present absent)
+  (not (town-under-attack))
+  (unit-type-count-total villager > 30)
+  (not (up-pending-placement c: castle))
+  (up-pending-objects c: castle == 0)
+  (up-can-build-line 0 gl-castle-1a-x c: castle)
+=>
+  (generate-random-number 2)
+  (set-goal gl-build-castle-1 yes-build)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-build-castle-1 yes-build)
+  (random-number == 1)
+=>
+  (up-build-line gl-castle-1a-x gl-castle-1a-x c: castle)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+  (goal gl-build-castle-1 yes-build)
+  (random-number == 2)
+=>
+  (up-build-line gl-castle-1b-x gl-castle-1b-x c: castle)
+)
+
+; Resets random adjustments.
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (up-add-point gl-castle-1a-x g-random-x c: -1)
+  (up-add-point gl-castle-1b-x g-random-x c: -1)
+  (up-add-point gl-castle-2-x g-random-x c: -1)
+  (up-add-point gl-castle-3-x g-random-x c: -1)
+)
+
+(defrule
+  (goal gl-castle-search search-complete)
+=>
+  (set-goal gl-castle-search no-search)
+  (enable-timer t-castle i-castle)
+)
+
+; Remaining buildings.
+
+(defrule
+  (building-type-count-total monastery < 1)
+  (can-build monastery)
+=>
+  (build monastery)
+)
+
+(defrule
+  (unit-type-count-total monk < 1)
+  (unit-type-count-total monk-with-relic < 1)
+  (can-train monk)
+=>
+  (train monk)
+)
+
+(defrule
+  (building-type-count-total stable < 3)
+  (can-build stable)
+=>
+  (build stable)
+)
+
+(defrule
+  (building-type-count-total siege-workshop < 2)
+  (can-build siege-workshop)
+=>
+  (build siege-workshop)
+)
+
+(defrule
+  (game-time > 1200)
+  (building-type-count-total stable < 10)
+  (can-build stable)
+  (difficulty <= moderate)
+=>
+  (build-forward stable)
+)
+
+(defrule
+  (game-time > 1200)
+  (building-type-count-total siege-workshop < 7)
+  (can-build siege-workshop)
+  (difficulty <= hard)
+=>
+  (build-forward siege-workshop)
+)
+
+(defrule
+  (building-type-count-total barracks < 2)
+  (can-build barracks)
+=>
+  (build barracks)
+)
+
+(defrule
+  (building-type-count-total archery-range < 2)
+  (can-build archery-range)
+=>
+  (build archery-range)
+)
+
+(defrule
+  (building-type-count-total market < 1)
+  (can-build market)
+=>
+  (build market)
+)
+
+(defrule
+  (or
+    (building-type-count-total lumber-camp == 0)
+    (and
+      (building-type-count-total lumber-camp > 0)
+      (and
+        (dropsite-min-distance wood > 4)
+        (dropsite-min-distance wood < 255)
+      )
+    )
+  )
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+(defrule
+  (building-type-count-total lumber-camp < 3)
+  (unit-type-count-total villager > 30)
+  (can-build lumber-camp)
+=>
+  (build lumber-camp)
+)
+
+; Farms and Mills
+
+(defrule
+  (building-type-count-total farm < 80)
+  (up-pending-objects c: farm < 5)
+  (idle-farm-count < 5)
+  (can-build farm)
+=>
+  (build farm)
+)
+
+(defrule
+  (building-type-count-total farm > 20)
+  (building-type-count-total mill < 3)
+  (can-build mill)
+=>
+  (build mill)
+)
+
+; Shifts Villagers to Stone once a Mining Camp is constructed.
+(defrule
+  (building-type-count mining-camp >= 1)
+=>
+  (set-strategic-number sn-food-gatherer-percentage 30)
+  (set-strategic-number sn-wood-gatherer-percentage 25)
+  (set-strategic-number sn-gold-gatherer-percentage 25)
+  (set-strategic-number sn-stone-gatherer-percentage 20)
+  (disable-self)
+)
+
+(defrule
+  (game-time > 60)
+  (up-timer-status t-stone-search != timer-running)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-stone-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: stone c: 4)
+  (up-get-search-state gl-local-total)
+  (set-goal gl-stone-search search-complete)
+  (enable-timer t-stone-search mine-interval)
+)
+
+(defrule
+  (goal gl-stone-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-stone-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-stone-search search-complete)
+=>
+  (set-goal gl-stone-search no-search)
+)
+
+(defrule
+  (game-time > 480)
+  (up-timer-status t-gold-search != timer-running)
+=>
+  (up-full-reset-search)
+  (up-set-target-point gl-gold-x)
+  (up-filter-distance c: -1 c: 10)
+  (up-find-local c: mining-camp c: 1)
+  (up-filter-status c: status-resource c: list-active)
+  (up-find-resource c: gold c: 7)
+  (up-get-search-state gl-local-total)
+  (set-goal gl-gold-search search-complete)
+  (enable-timer t-gold-search mine-interval)
+)
+
+(defrule
+  (goal gl-gold-search search-complete)
+  (up-compare-goal gl-local-total == 0)
+  (up-compare-goal gl-remote-total > 0)
+  (not (up-pending-placement c: mining-camp))
+  (up-pending-objects c: mining-camp == 0)
+  (up-can-build 1 c: mining-camp)
+=>
+  (up-set-target-point gl-gold-x)
+  (up-build place-point 0 c: mining-camp)
+)
+
+(defrule
+  (goal gl-gold-search search-complete)
+=>
+  (set-goal gl-gold-search no-search)
+)
+
+(defrule
+  (unit-type-count-total villager < 100)
+  (can-train villager)
+=>
+  (train villager)
+)
+
+; Unit production
+
+(defrule
+  (unit-type-count-total knight-line < 5)
+  (can-train knight-line)
+=>
+  (train knight-line)
+)
+
+(defrule
+  (unit-type-count-total hand-cannoneer < 10)
+  (can-train hand-cannoneer)
+=>
+  (train hand-cannoneer)
+)
+
+(defrule
+  (unit-type-count-total bombard-cannon < 1)
+  (can-train bombard-cannon)
+=>
+  (train bombard-cannon)
+)
+
+(defrule
+  (unit-type-count-total battering-ram-line < 2)
+  (can-train battering-ram-line)
+  (difficulty <= moderate)
+=>
+  (train battering-ram-line)
+)
+
+(defrule
+  (unit-type-count-total bombard-cannon < 3)
+  (can-train bombard-cannon)
+=>
+  (train bombard-cannon)
+)
+
+(defrule
+  (game-time > 1200)
+  (unit-type-count-total bombard-cannon < 25)
+  (difficulty <= hard)
+  (can-train bombard-cannon)
+=>
+  (train bombard-cannon)
+)
+
+(defrule
+  (unit-type-count-total knight-line < 60)
+  (can-train knight-line)
+=>
+  (train knight-line)
+)
+
+(defrule
+  (unit-type-count-total bombard-cannon < 6)
+  (can-train bombard-cannon)
+  (difficulty <= moderate)
+=>
+  (train bombard-cannon)
+)
+
+(defrule
+  (unit-type-count-total throwing-axeman-line < 40)
+  (can-train throwing-axeman-line)
+  (difficulty <= moderate)
+=>
+  (train throwing-axeman-line)
+)
+
+(defrule
+  (unit-type-count-total hand-cannoneer < 30)
+  (can-train hand-cannoneer)
+=>
+  (train hand-cannoneer)
+)
+
+(defrule
+  (unit-type-count-total spearman-line < 10)
+  (can-train spearman-line)
+  (difficulty <= hard)
+=>
+  (train spearman-line)
+)
+
+; Attack management
+
+(defrule
+  (town-under-attack)
+=>
+  (attack-now)
+)
+
+(defrule
+  (game-time > 300)
+=>
+  (set-strategic-number sn-percent-attack-soldiers 100)
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+  (enable-timer t-rams i-rams)
+  (enable-timer t-duc-wonder i-duc-wonder)
+  (disable-self)
+)
+
+(defrule
+  (timer-triggered t-attack)
+=>
+  (attack-now)
+  (enable-timer t-attack attack-interval)
+)
+
+(defrule
+  (timer-triggered t-duc-wonder)
+  (goal g-duc-wonder 0)
+=>
+  (set-goal g-duc-wonder 1)
+)
+
+; Tasks units within 8 tiles of the Wonder to attack it.
+(defrule
+  (goal g-duc-wonder 1)
+=>
+  (up-full-reset-search)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-find-remote c: wonder c: 1)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-get-point position-object gl-wonder-x)
+  (up-set-target-point gl-wonder-x)
+  (up-filter-distance c: -1 c: 8)
+  (up-find-local c: battering-ram-line c: 60)
+  (up-find-local c: knight-line c: 60)
+  (up-find-local c: spearman-line c: 60)
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (goal g-duc-wonder 1)
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-set-target-object search-remote c: 0)
+  (up-target-objects 1 action-default -1 -1)
+)
+
+(defrule
+  (goal g-duc-wonder 1)
+=>
+  (set-goal g-duc-wonder 0)
+  (enable-timer t-duc-wonder i-duc-wonder)
+)
+
+; Focuses rams on breaking through gates/walls in the northwestern corner
+; of Acre.
+
+(defrule
+  (true)
+=>
+  (enable-timer t-rams i-rams)
+  (disable-self)
+)
+
+(defrule
+  (timer-triggered t-rams)
+=>
+  (up-full-reset-search)
+  (up-set-target-point g-gather-ram-x)
+  (up-filter-distance c: -1 c: 25)
+  (up-find-local c: battering-ram-line c: 240)
+
+  (up-reset-filters)
+  (set-strategic-number sn-focus-player-number 1)
+  (up-set-target-point g-chokepoint-x)
+  (up-filter-distance c: -1 c: 7)
+  (up-find-remote c: building-class c: 10)
+  (up-find-remote c: tower-class c: 10)
+  (up-find-remote c: wall-class c: 10)
+  (up-find-remote c: gate-class c: 10)
+
+  (up-get-search-state gl-local-total)
+)
+
+(defrule
+  (timer-triggered t-rams)
+  (up-compare-goal gl-local-total > 0)
+  (up-compare-goal gl-remote-total > 0)
+=>
+  (up-target-point g-attack-x action-attack-move formation-stagger stance-aggressive)
+)
+
+(defrule
+  (timer-triggered t-rams)
+=>
+  (enable-timer t-rams i-rams)
+)

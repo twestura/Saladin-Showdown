@@ -1,0 +1,783 @@
+; Has the AI make Fishing Ships.
+; The goal is to make 18 Fish Traps northern-most Docks. Each Dock supports at
+; most 3 Fishing Ships on its southwest side. There is a 1-tile gap between the
+; Dock and the Fishing Trap.
+; Future Goal: Fishing Traps that are too far from Docks are deleted.
+
+; This file also is an experiment in splitting code up into multiple
+; "functions". It's pretty helpful in avoiding nested loops with various jump
+; actions. But it's also pretty unweildy, needing manually to change constants
+; in order to get rule indices correct. A preprocess could help in this regard
+; for future projects.
+
+(load "UserPatchConst")
+
+
+; ==============================================================================
+; Constants
+; ==============================================================================
+
+; Minimum x coordinate of a dock to use for fish traps.
+; Avoids the "Gold island" in the "low x" portion of the map.
+(defconst min-x 80)
+
+; The maximum number of Fish Traps that may be built.
+(defconst max-traps 18)
+
+; The maximum number of Fishing to train.
+(defconst max-fishing-ships 30)
+
+; The maximum number of tiles a Fish Trap may be from a Dock.
+; Fish Traps strictly beyond this distance are deleted.
+(defconst max-trap-dist 4)
+
+; List of Fish Traps and their Fishing Ships.
+; The goals implicitly are initialized to -1 and are reset to -1 when a Fish
+; trap is deleted.
+; Use `up-get-indirect-goal` with this id to get the object ids stored in
+; the list.
+; The Fish Trap index p corresponds to the Fish Trap index `p + max-traps`.
+
+; The first index of the saved Fish Trap list.
+(defconst trap-list 400)
+; The index immediately after the final element of the saved Fish Trap list.
+(defconst trap-list-end 418)
+; The first index of the saved Fishing Ship list
+(defconst fish-list 418)
+; The index immediately after the final element of the saved Fishing Ship list.
+(defconst fish-list-end 436)
+
+; ==============================================================================
+; Timer Ids (1 -- 50)
+; ==============================================================================
+
+; Timer controlling how often the DUC for managing Fish Traps is executed.
+(defconst t-duc 5)
+(defconst i-duc 20)
+
+
+; ==============================================================================
+; Goal Ids (1 -- 512)
+; ==============================================================================
+
+; For this demo file the goals start at index 350 to make it easier to port them
+; to the Genoese AI.
+
+; The rule id to go to when the function terminates.
+; The function must jump back to this rule
+; (e.g. using `up-jump-direct g: g-return-to-id`) when its execution
+; completes. If a function calls another function, then the caller must save
+; this value into a local variable for use after regaining control from the
+; callee.
+(defconst g-return-to-id 350)
+
+; Variables for maintaining index state during loops.
+(defconst h 351) ; Index of the Docks in search-local.
+(defconst i 352) ; Index of Fishing Ships in search-local.
+(defconst j 353) ; Index of Fish Traps in search-local.
+(defconst k 354)
+(defconst p 355) ; Index of the saved list.
+(defconst q 356) ; Second index of the saved list.
+(defconst r 357) ; Third index 05:18 PMof the saved list.
+
+; Utility points for distance calculations.
+(defconst g-point0x 358)
+(defconst g-point0y 359)
+(defconst g-point1x 360)
+(defconst g-point1y 361)
+
+; Point at the north of the map used to sort Docks.
+(defconst g-northx 362)
+(defconst g-northy 363)
+
+; Flag to determing whether to excute the timer-protected duc code.
+; Initialize to 0.
+(defconst g-duc 364)
+
+; Search result variables.
+(defconst g-local-total 365)
+(defconst g-local-last 366)
+(defconst g-remote-total 367)
+(defconst g-remote-last 368)
+
+; The ends of search locations from the local search.
+(defconst g-loc1 369)
+(defconst g-loc2 370)
+(defconst g-loc3 371)
+(defconst g-loc4 372)
+
+; The number of Fish Traps in the Saved list.
+(defconst g-num-traps 373)
+
+; The id of a Fish Trap stored indirectly by the saved Fish Trap list, or -1
+; if a Fish Trap does not exist at the index.
+(defconst g-trap-id 374)
+
+; Local variables for holding the positions of docks and fish traps.
+(defconst g-dockx 375)
+(defconst g-docky 376)
+(defconst g-trap0x 377)
+(defconst g-trap0y 378)
+(defconst g-trap1x 379)
+(defconst g-trap1y 380)
+(defconst g-trap2x 381)
+(defconst g-trap2y 382)
+
+; The id to check for containment in the saved trap list for `is-saved-trap`.
+(defconst g-check-id 383)
+
+; Output flag for `is-saved-trap`. `0` if the fish trap is not a repeat, `1` if
+; it is.
+(defconst g-is-saved 384)
+
+; Saves the previous return location for use when calling a function from a
+; function.
+(defconst g-ret-backup 385)
+(defconst g-ret-backup-2 386)
+
+; Local variable for `is-saved-trap` holding the id of the saved Fish Trap list
+; at index `q`.
+(defconst g-trap-q 387)
+
+; The id of the current Fishing Ship in the saved Fishing Ship list.
+(defconst g-ship-id 388)
+
+; Local variable for `is-saved-ship` holding the id of hte saved Fish Trap list
+; at index `r`.
+(defconst g-ship-r 389)
+
+; Flag indicating whether both the Fish Trap and Fishing Ship exist.
+(defconst g-both-exist 390)
+
+; ==============================================================================
+; Functions
+; ==============================================================================
+
+; Each function is preceeded by a constant, giving its index in the rule list.
+; The rule at index 0 jumps over the functions to the first rule executed by
+; the script.
+; The first function is at rule index 1.
+; Note that a single function may consist of multiple rules.
+
+; The number of function rules.
+; TODO have a pre-processor count this for me (and assign function ids too).
+(defconst num-func-rules 47)
+(defconst f-init-goals 1)
+(defconst f-init-sns 2)
+(defconst f-count-fish-traps 3)
+(defconst f-build-traps 8)
+(defconst f-assign-fish-traps 15)
+(defconst f-is-saved-trap 20)
+(defconst f-next-j 25)
+(defconst f-assign-ships 29)
+(defconst f-is-saved-ship 34)
+(defconst f-next-i 39)
+(defconst f-move-ships 43)
+
+; This rule skips over all function calls to reach the first rule actually
+; used by the script.
+(defrule
+  (true)
+=>
+  (up-jump-rule num-func-rules)
+)
+
+; init-goals -------------------------------------------------------------------
+; Initializes all Goal variables used throughout the script.
+; Call this function in the first rule in the "Rules" section, ensure that rule
+; disables itself after the initialization is complete.
+(defrule
+  (true)
+=>
+  (set-goal g-northx 139)
+  (set-goal g-northy 0)
+  (set-goal g-duc 0)
+  (up-jump-direct g: g-return-to-id)
+)
+; init-goals -------------------------------------------------------------------
+
+; init-sns ---------------------------------------------------------------------
+; Initializes strategic numbers and Fish Trap Builders used throughout the
+; script.
+; Call this function in the first rule in the "Rules" section, ensure that rule
+; disables itself after the initialization is complete.
+(defrule
+  (true)
+=>
+  ; (set-strategic-number sn-enable-new-building-system 1)
+  ; (set-strategic-number sn-allow-adjacent-dropsites 1)
+  (up-assign-builders c: fish-trap c: -1)
+
+  ; ; Villagers
+	; (set-strategic-number sn-maximum-food-drop-distance 0)
+	; (set-strategic-number sn-maximum-wood-drop-distance 0)
+	; (set-strategic-number sn-maximum-gold-drop-distance 0)
+	; (set-strategic-number sn-maximum-stone-drop-distance 0)
+	; (set-strategic-number sn-maximum-hunt-drop-distance 0)
+	; (set-strategic-number sn-food-gatherer-percentage 0)
+	; (set-strategic-number sn-stone-gatherer-percentage 0)
+	; (set-strategic-number sn-gold-gatherer-percentage 0)
+	; (set-strategic-number sn-wood-gatherer-percentage 0)
+	; (set-strategic-number sn-cap-civilian-explorers 0)
+	; (set-strategic-number sn-percent-civilian-explorers 0)
+
+  ; ; Military
+	; (set-strategic-number sn-percent-enemy-sighted-response 100)
+	; (set-strategic-number sn-hits-before-alliance-change 25)
+	; (set-strategic-number sn-number-explore-groups 0)
+	; (set-strategic-number sn-percent-attack-soldiers 0)
+	; (set-strategic-number sn-task-ungrouped-soldiers 0)
+	; (set-strategic-number sn-number-attack-groups 0)
+	; (set-strategic-number sn-enemy-sighted-response-distance 10)
+	; (set-strategic-number sn-total-number-explorers 0)
+	; (set-strategic-number sn-relic-return-distance 0)
+
+  (up-jump-direct g: g-return-to-id)
+)
+; init-sns ---------------------------------------------------------------------
+
+; count-fish-traps -------------------------------------------------------------
+; Mutates `g-num-traps` to equal the number of Fish Traps saved in the list.
+
+; Init
+(defrule
+  (true)
+=>
+  (set-goal g-num-traps 0)
+  (set-goal p trap-list)
+)
+
+; Guard + Body
+(defrule
+  (not (goal p trap-list-end))
+=>
+  (up-get-indirect-goal g: p g-trap-id)
+)
+
+; Increments the number of Fish Traps, if the Trap exists.
+(defrule
+  (not (goal p trap-list-end))
+  (up-set-target-by-id g: g-trap-id)
+=>
+  (up-modify-goal g-num-traps c:+ 1)
+)
+
+; Increment
+(defrule
+  (not (goal p trap-list-end))
+=>
+  (up-modify-goal p c:+ 1)
+  (up-jump-rule -3)
+)
+
+; Return
+(defrule
+  (true)
+=>
+  (up-jump-direct g: g-return-to-id)
+)
+; count-fish-traps -------------------------------------------------------------
+
+; build-traps ------------------------------------------------------------------
+; Builds Fish Traps up to the limit, starting from the northernmost Dock.
+; Requires the local list is initialized and the number of saved fish traps
+; is counted.
+; Init
+(defrule
+  (true)
+=>
+  (set-goal h 0)
+)
+
+; Body
+(defrule
+  (up-compare-goal h g:!= g-loc1)
+  (not (goal g-num-traps max-traps))
+=>
+  (up-set-target-object search-local g: h)
+  (up-get-point position-object g-dockx)
+
+  (up-copy-point g-trap1x g-dockx)
+  (up-modify-goal g-trap1x c:- 3)
+
+  (up-copy-point g-trap0x g-trap1x)
+  (up-modify-goal g-trap0y c:- 1)
+
+  (up-copy-point g-trap2x g-trap1x)
+  (up-modify-goal g-trap2y c:+ 1)
+)
+
+; The order 0, 1, 2 makes the traps build from top-left to bottom-right per
+; dock.
+(defrule
+  (up-compare-goal h g:!= g-loc1)
+  (not (goal g-num-traps max-traps))
+  (up-can-build-line 0 g-trap0x c: fish-trap)
+=>
+  (up-build-line g-trap0x g-trap0x c: fish-trap)
+  (up-modify-goal g-num-traps c:+ 1)
+)
+
+(defrule
+  (up-compare-goal h g:!= g-loc1)
+  (not (goal g-num-traps max-traps))
+  (up-can-build-line 0 g-trap1x c: fish-trap)
+=>
+  (up-build-line g-trap1x g-trap1x c: fish-trap)
+  (up-modify-goal g-num-traps c:+ 1)
+)
+
+(defrule
+  (up-compare-goal h g:!= g-loc1)
+  (not (goal g-num-traps max-traps))
+  (up-can-build-line 0 g-trap2x c: fish-trap)
+=>
+  (up-build-line g-trap2x g-trap2x c: fish-trap)
+  (up-modify-goal g-num-traps c:+ 1)
+)
+
+; Increment
+(defrule
+  (up-compare-goal h g:!= g-loc1)
+  (not (goal g-num-traps max-traps))
+=>
+  (up-modify-goal h c:+ 1)
+  (up-jump-rule -5)
+)
+
+; Return
+(defrule
+  (true)
+=>
+  (up-jump-direct g: g-return-to-id)
+)
+; build-traps ------------------------------------------------------------------
+
+; assign-fish-traps ------------------------------------------------------------
+; Fills missing indices in the saved Fish Trap list if there are Fish Traps
+; available to be added.
+; Requires the local list and associated variables are initialized.
+; Init
+(defrule
+  (true)
+=>
+  (set-goal p trap-list)
+  (up-modify-goal j g:= g-loc2)
+  (up-modify-goal g-ret-backup g:= g-return-to-id)
+)
+
+; Body
+(defrule
+  (not (goal p trap-list-end))
+  (up-compare-goal j g:!= g-loc4)
+=>
+  (up-get-indirect-goal g: p g-trap-id)
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-next-j)
+)
+
+(defrule
+  (not (goal p trap-list-end))
+  (up-compare-goal j g:!= g-loc4)
+  (not (up-set-target-by-id g: g-trap-id))
+=>
+  (up-set-target-object search-local g: j)
+  (up-get-object-data object-data-id g-trap-id)
+  (up-set-indirect-goal g: p g: g-trap-id)
+)
+
+; Increment
+(defrule
+  (not (goal p trap-list-end))
+  (up-compare-goal j g:!= g-loc4)
+=>
+  (up-modify-goal p c:+ 1)
+  (up-jump-rule -3)
+)
+
+; Return
+(defrule
+  (true)
+=>
+  (up-modify-goal g-return-to-id g:= g-ret-backup)
+  (up-jump-direct g: g-return-to-id)
+)
+; assign-fish-traps ------------------------------------------------------------
+
+; is-saved-trap ----------------------------------------------------------------
+; Returns whether a Fish Trap with id `g-check-id` is present in the saved
+; Fish Trap List. Requires `g-check-id` is the id of an existing Fish Trap
+; (not necessarily in the list). This requirement implies `g-check-id` is not
+; equal to `-1`.
+; Input: `g-check-id`
+; Output: `g-is-saved`
+(defrule
+  (true)
+=>
+  (set-goal q trap-list)
+  (set-goal g-is-saved 0)
+)
+
+(defrule
+  (not (goal q trap-list-end))
+=>
+  (up-get-indirect-goal g: q g-trap-q)
+)
+
+(defrule
+  (not (goal q trap-list-end))
+  (up-compare-goal g-check-id g:== g-trap-q)
+=>
+  (set-goal g-is-saved 1)
+)
+
+(defrule
+  (not (goal q trap-list-end))
+  (goal g-is-saved 0)
+=>
+  (up-modify-goal q c:+ 1)
+  (up-jump-rule -3)
+)
+
+(defrule
+  (true)
+=>
+  (up-jump-direct g: g-return-to-id)
+)
+; is-saved-trap ----------------------------------------------------------------
+
+; next-j -----------------------------------------------------------------------
+; Increments `j` to be the next index of search-local that does not contain a
+; Fish Trap already in the saved list. Sets `j` to `loc4` if no such Fish Trap
+; Exists
+; Requires: `loc2 <= j <= loc4`.
+(defrule
+  (true)
+=>
+  (up-modify-goal g-ret-backup-2 g:= g-return-to-id)
+)
+
+(defrule
+  (up-compare-goal j g:!= g-loc4)
+=>
+  (up-set-target-object search-local g: j)
+  (up-get-object-data object-data-id g-check-id)
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-is-saved-trap)
+)
+
+(defrule
+  (up-compare-goal j g:!= g-loc4)
+  (goal g-is-saved 1)
+=>
+  (up-modify-goal j c:+ 1)
+  (up-jump-rule -2)
+)
+
+(defrule
+  (true)
+=>
+  (up-modify-goal g-return-to-id g:= g-ret-backup-2)
+  (up-jump-direct g: g-return-to-id)
+)
+; next-j -----------------------------------------------------------------------
+
+; assign-ships -----------------------------------------------------------------
+; Init
+(defrule
+  (true)
+=>
+  (set-goal p trap-list)
+  (up-modify-goal i g:= g-loc1)
+  (up-modify-goal g-ret-backup g:= g-return-to-id)
+)
+
+; Body
+(defrule
+  (not (goal p trap-list-end))
+  (up-compare-goal i g:!= g-loc2)
+=>
+  (up-get-indirect-goal g: p g-trap-id)
+  (up-modify-goal q g:= p)
+  (up-modify-goal q c:+ max-traps)
+  (up-get-indirect-goal g: q g-ship-id)
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-next-i)
+)
+
+(defrule
+  (not (goal p trap-list-end))
+  (up-compare-goal i g:!= g-loc2)
+  (up-set-target-by-id g: g-trap-id)
+  (not (up-set-target-by-id g: g-ship-id))
+=>
+  (up-set-target-object search-local g: i)
+  (up-get-object-data object-data-id g-ship-id)
+  (up-set-indirect-goal g: q g: g-ship-id)
+)
+
+; Increment
+(defrule
+  (not (goal p trap-list-end))
+  (up-compare-goal i g:!= g-loc2)
+=>
+  (up-modify-goal p c:+ 1)
+  (up-jump-rule -3)
+)
+
+; Return
+(defrule
+  (true)
+=>
+  (up-modify-goal g-return-to-id g:= g-ret-backup)
+  (up-jump-direct g: g-return-to-id)
+)
+; assign-ships -----------------------------------------------------------------
+
+; is-saved-ship ----------------------------------------------------------------
+; Returns whether a Fishing Ship with id `g-check-id` is present in the saved
+; Fishing Ship List. Requires `g-check-id` is the id of an existing Fishing Ship
+; (not necessarily in the list). This requirement implies `g-check-id` is not
+; equal to `-1`.
+; Input: `g-check-id`
+; Output: `g-is-saved`
+(defrule
+  (true)
+=>
+  (set-goal r fish-list)
+  (set-goal g-is-saved 0)
+)
+
+(defrule
+  (not (goal r fish-list-end))
+=>
+  (up-get-indirect-goal g: r g-ship-r)
+)
+
+(defrule
+  (not (goal r fish-list-end))
+  (up-compare-goal g-check-id g:== g-ship-r)
+=>
+  (set-goal g-is-saved 1)
+)
+
+(defrule
+  (not (goal r fish-list-end))
+  (goal g-is-saved 0)
+=>
+  (up-modify-goal r c:+ 1)
+  (up-jump-rule -3)
+)
+
+(defrule
+  (true)
+=>
+  (up-jump-direct g: g-return-to-id)
+)
+; is-saved-ship ----------------------------------------------------------------
+
+; next-i  ----------------------------------------------------------------------
+(defrule
+  (true)
+=>
+  (up-modify-goal g-ret-backup-2 g:= g-return-to-id)
+)
+
+(defrule
+  (up-compare-goal i g:!= g-loc2)
+=>
+  (up-set-target-object search-local g: i)
+  (up-get-object-data object-data-id g-check-id)
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-is-saved-ship)
+)
+
+(defrule
+  (up-compare-goal i g:!= g-loc2)
+  (goal g-is-saved 1)
+=>
+  (up-modify-goal i c:+ 1)
+  (up-jump-rule -2)
+)
+
+(defrule
+  (true)
+=>
+  (up-modify-goal g-return-to-id g:= g-ret-backup-2)
+  (up-jump-direct g: g-return-to-id)
+)
+; next-i  ----------------------------------------------------------------------
+
+; move-ships -------------------------------------------------------------------
+(defrule
+  (true)
+=>
+  (set-goal p trap-list)
+)
+
+(defrule
+  (not (goal p trap-list-end))
+=>
+  (up-get-indirect-goal g: p g-trap-id)
+  (up-modify-goal q g:= p)
+  (up-modify-goal q c:+ max-traps)
+  (up-get-indirect-goal g: q g-ship-id)
+  (set-goal g-both-exist 0)
+)
+
+(defrule
+  (not (goal p trap-list-end))
+  (up-set-target-by-id g: g-ship-id)
+  (up-set-target-by-id g: g-trap-id)
+=>
+  (up-full-reset-search)
+  (up-add-object-by-id search-local g: g-ship-id)
+  (up-add-object-by-id search-remote g: g-trap-id)
+  (up-set-target-object search-remote c: 0)
+  (up-target-objects 1 action-default -1 -1)
+)
+
+(defrule
+  (not (goal p trap-list-end))
+=>
+  (up-modify-goal p c:+ 1)
+  (up-jump-rule -3)
+)
+
+(defrule
+  (true)
+=>
+  (up-jump-direct g: g-return-to-id)
+)
+; move-ships -------------------------------------------------------------------
+
+
+; ==============================================================================
+; Rules
+; ==============================================================================
+
+(defrule
+  (true)
+=>
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-init-goals)
+  (disable-self)
+)
+
+(defrule
+  (true)
+=>
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-init-sns)
+  (disable-self)
+)
+
+(defrule
+  (unit-type-count-total fishing-ship < max-fishing-ships)
+  (can-train fishing-ship)
+=>
+  (train fishing-ship)
+)
+
+
+; ==============================================================================
+; Fish Trap DUC
+; ==============================================================================
+
+(defrule
+  (game-time > 900)
+  (up-timer-status t-duc != timer-running)
+  (goal g-duc 0)
+=>
+  (set-goal g-duc 1)
+)
+
+; Sets the search-local list.
+; [ sorted docks, fishing ships, fish traps, pending fish traps ]
+(defrule
+  (goal g-duc 1)
+=>
+  (up-full-reset-search)
+
+  ; Gets Docks and sorts them ascending by closest dock to the north.
+  (up-find-local c: dock c: 20)
+  (up-set-target-point g-northx)
+  (up-clean-search search-local object-data-distance search-order-asc)
+  (up-get-search-state g-local-total)
+  (up-modify-goal g-loc1 g:= g-local-total)
+
+  ; Gets up to 30 Fishing Ships.
+  (up-find-local c: fishing-ship c: 30)
+  (up-get-search-state g-local-total)
+  (up-modify-goal g-loc2 g:= g-local-total)
+
+  ; Gets up to 20 Fish Traps (alive, not pending).
+  (up-find-local c: fish-trap c: 20)
+  (up-get-search-state g-local-total)
+  (up-modify-goal g-loc3 g:= g-local-total)
+
+  ; Gets up to 20 Pending Fish Traps (foundation placed, under construction).
+  (up-filter-status c: status-pending c: list-active)
+  (up-find-status-local c: fish-trap c: 20)
+  (up-get-search-state g-local-total)
+  (up-modify-goal g-loc4 g:= g-local-total)
+)
+
+; Assigns Fish Traps.
+(defrule
+  (goal g-duc 1)
+=>
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-assign-fish-traps)
+)
+
+; Assigns Fishing Ships to Fish Traps.
+(defrule
+  (goal g-duc 1)
+=>
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-assign-ships)
+)
+
+; Counts the number of saved Fish Traps.
+(defrule
+  (goal g-duc 1)
+=>
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-count-fish-traps)
+)
+
+; Builds additional Fish Traps.
+(defrule
+  (goal g-duc 1)
+=>
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-build-traps)
+)
+
+; Moves Fishing Ships one tile north-west of their Fish Traps and tasks them to
+; the traps if they're already in place.
+(defrule
+  (goal g-duc 1)
+=>
+  (up-get-rule-id g-return-to-id)
+  (up-modify-goal g-return-to-id c:+ 1)
+  (up-jump-direct c: f-move-ships)
+)
+
+(defrule
+  (goal g-duc 1)
+=>
+  (set-goal g-duc 0)
+  (enable-timer t-duc i-duc)
+)
